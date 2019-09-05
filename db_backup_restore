@@ -1,0 +1,176 @@
+#!/bin/bash
+
+# Configuration
+# following configuration parameters required:
+# DB_BACKUP_AWS_ACCESS_KEY_ID=
+# DB_BACKUP_AWS_SECRET_ACCESS_KEY=
+# DB_BACKUP_AWS_DEFAULT_REGION=
+# DB_BACKUP_TARGET_BUCKET=
+# DB_BACKUP_ROOT=
+# DB_BACKUP_BASE_NAME=
+
+ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd )"
+
+if [[ -z "$RAILS_ENV" ]]; then
+  RAILS_ENV=development
+fi
+
+if [ "$RAILS_ENV" != "production" ]; then
+  if [[ -f .env ]]; then
+    . ${ROOT_DIR}/.env
+  fi
+
+  if [[ -f .env.${RAILS_ENV} ]]; then
+    . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+fi
+
+export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
+export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
+
+TABLES_TO_SKIP=()
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -dd|--dumps-dir)
+      DUMPS_DIR=$2
+      shift 2
+      ;;
+    -dd=*|--dumps-dir=*)
+      DUMPS_DIR="${1#*=}"
+      shift 1
+      ;;
+
+    -rf|--remote-file)
+      REMOTE_FILE=$2
+      shift 2
+      ;;
+    -rf=*|--remote-file=*)
+      REMOTE_FILE="${1#*=}"
+      shift 1
+      ;;
+
+    --url|--signed-url)
+      REMOTE_SIGNED_URL=$2
+      shift 2
+      ;;
+    --url=*|--signed-url=*)
+      REMOTE_SIGNED_URL="${1#*=}"
+      shift 1
+      ;;
+
+    -lf|--local-file)
+      LOCAL_FILE=$2
+      shift 2
+      ;;
+    -lf=*|--local-file=*)
+      LOCAL_FILE="${1#*=}"
+      shift 1
+      ;;
+
+    --skip-downloading)
+      SKIP_DOWNLOADING=true
+      shift 1
+    ;;
+
+    --create-database)
+      CREATE_DATABASE=$2
+      shift 2
+      ;;
+    --create-database=*)
+      CREATE_DATABASE="${1#*=}"
+      shift 1
+      ;;
+
+    -db|--database)
+      DATABASE_URL=$2
+      shift 2
+      ;;
+    -db=*|--database=*)
+      DATABASE_URL="${1#*=}"
+      shift 1
+      ;;
+
+    # -st|--skip-table)
+    #   TABLES_TO_SKIP+=($2)
+    #   shift 2
+    #   ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$CREATE_DATABASE" ]]; then
+  CREATE_DATABASE=true
+fi
+
+if [[ "$SKIP_DOWNLOADING" != "true" ]]; then
+  LOCAL_FILE="$(
+    $ROOT_DIR/bin/db_backup_download \
+      --dd "$DUMPS_DIR" \
+      --url "$REMOTE_SIGNED_URL" \
+      -rf "$REMOTE_FILE" \
+      -lf "$LOCAL_FILE" \
+  )"
+fi
+
+
+if [[ ! -f "$LOCAL_FILE" ]]; then
+  echo "File $LOCAL_FILE not found"
+  exit 2
+fi
+
+if [[ "$CREATE_DATABASE" == "true" ]]; then
+  SUPERUSER_DATABASE_URL=$(echo $DATABASE_URL | sed -E 's/\/\w+?$/\/postgres/')
+  CREATED_DB_NAME=$(basename $LOCAL_FILE | cut -d. -f1)__at__$(date +'%Y%m%d_%H%M%S')
+
+  DATABASE_URL=$(echo $DATABASE_URL | sed -E "s/\\/\\w+?$/\\/${CREATED_DB_NAME}/")
+
+  psql "$SUPERUSER_DATABASE_URL" <<-SQL
+    CREATE DATABASE ${CREATED_DB_NAME};
+SQL
+  echo "Created database ${CREATED_DB_NAME}"
+fi
+
+
+if [[ ! -z "${TABLES_TO_SKIP[*]}" ]]; then
+  echo ""
+  # NOTE: Doesn't work as expected
+  # ALL_TABLES=$(
+  #   pg_restore -l "$LOCAL_FILE" \
+  #     | grep TABLE \
+  #     | grep -v FOREIGN \
+  #     | grep -v DATA \
+  #     | awk '{ print $5"."$6; }' \
+  #     | sort | uniq
+  # )
+
+  # TABLES_TO_RESTORE=$(echo "$ALL_TABLES" \
+  #   | grep -v -E "$(IFS=$'\n' ; echo "${TABLES_TO_SKIP[*]}") | tr ';' '|' | sed 's/\./\\./'"
+  # )
+  # TABLES_RESTORE_OPTIONS=$(echo "$TABLES_TO_RESTORE" | awk '{ print "--table="$1; }' )
+else
+  TABLES_RESTORE_OPTIONS=""
+fi
+
+pg_restore --verbose --clean --no-acl --no-owner \
+  -d "$DATABASE_URL" \
+  < "$LOCAL_FILE"
+
+
+# pg_restore --verbose --no-acl --no-owner \
+#   --data-only \
+#   -d "$DATABASE_URL" \
+#   $TABLES_RESTORE_OPTIONS \
+#   < "$LOCAL_FILE"
+
+if [[ ! -z "$CREATED_DB_NAME" ]]; then
+  echo "Restored $CREATED_DB_NAME"
+else
+  echo "Restored to DATABASE_URL"
+fi

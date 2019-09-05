@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Configuration
+# following configuration parameters required:
+# DB_BACKUP_AWS_ACCESS_KEY_ID=
+# DB_BACKUP_AWS_SECRET_ACCESS_KEY=
+# DB_BACKUP_AWS_DEFAULT_REGION=
+# DB_BACKUP_TARGET_BUCKET=
+# DB_BACKUP_ROOT=
+# DB_BACKUP_BASE_NAME=
+
+ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd )"
+
+if [[ -z "$RAILS_ENV" ]]; then
+  RAILS_ENV=development
+fi
+
+if [ "$RAILS_ENV" != "production" ]; then
+  if [[ -f .env ]]; then
+    . ${ROOT_DIR}/.env
+  fi
+
+  if [[ -f .env.${RAILS_ENV} ]]; then
+    . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+fi
+
+export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
+export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
+
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -npx|--name-prefix)
+      BACKUP_FILE_PREFIX=$2
+      shift 2
+      ;;
+    -nsx|--name-suffix)
+      BACKUP_FILE_SUFFIX=$2
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+BACKUP_DIR=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc)
+
+BACKUP_FILE_NAME=$(date +"${BACKUP_FILE_PREFIX}${DB_BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc)
+
+aws configure set default.s3.multipart_chunksize 50MB
+
+S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${DB_BACKUP_ROOT}/${BACKUP_DIR}/${BACKUP_FILE_NAME}"
+
+pg_dump --format=custom -Z 5 -d "$DATABASE_URL" | aws s3 cp - "$S3_FILE_PATH"
