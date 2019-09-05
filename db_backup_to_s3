@@ -35,13 +35,76 @@ do
   key="$1"
 
   case $key in
+    -bn|--base-name)
+      BACKUP_BASE_NAME=$2
+      shift 2
+      ;;
+    -bn=*|--base-name=*)
+      BACKUP_BASE_NAME="${1#*=}"
+      shift 1
+      ;;
+
     -npx|--name-prefix)
       BACKUP_FILE_PREFIX=$2
       shift 2
       ;;
+    -npx=*|--name-prefix=*)
+      BACKUP_FILE_PREFIX="${1#*=}"
+      shift 1
+      ;;
+
     -nsx|--name-suffix)
       BACKUP_FILE_SUFFIX=$2
       shift 2
+      ;;
+    -nsx=*|--name-suffix=*)
+      BACKUP_FILE_SUFFIX="${1#*=}"
+      shift 1
+      ;;
+
+    -db|--database-url)
+      DATABASE_URL=$2
+      shift 2
+      ;;
+    -db=*|--database-url=*)
+      DATABASE_URL="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-root)
+      BACKUP_ROOT=$2
+      shift 2
+      ;;
+    --backup-root=*)
+      BACKUP_ROOT="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-dir)
+      BACKUP_DIR=$2
+      shift 2
+      ;;
+    --backup-dir=*)
+      BACKUP_DIR="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-file-name)
+      BACKUP_FILE_NAME=$2
+      shift 2
+      ;;
+    --backup-file-name=*)
+      BACKUP_FILE_NAME="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-remote-file-path)
+      REMOTE_FILE_PATH=$2
+      shift 2
+      ;;
+    --backup-remote-file-path=*)
+      REMOTE_FILE_PATH="${1#*=}"
+      shift 1
       ;;
     *)
       shift
@@ -49,12 +112,30 @@ do
   esac
 done
 
-BACKUP_DIR=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc)
+if [[ -z "$BACKUP_BASE_NAME" ]]; then
+  BACKUP_BASE_NAME=$DB_BACKUP_BASE_NAME
+fi
 
-BACKUP_FILE_NAME=$(date +"${BACKUP_FILE_PREFIX}${DB_BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc)
+if [[ -z "$BACKUP_ROOT" ]]; then
+  BACKUP_ROOT=${DB_BACKUP_ROOT}
+fi
+
+if [[ -z "$BACKUP_DIR" ]]; then
+  BACKUP_DIR=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc)
+fi
+
+if [[ -z "$BACKUP_FILE_NAME" ]]; then
+  BACKUP_FILE_NAME=$(
+    date +"${BACKUP_FILE_PREFIX}${DB_BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc
+  )
+fi
+
+if [[ -z "$REMOTE_FILE_PATH" ]]; then
+  REMOTE_FILE_PATH="${BACKUP_ROOT}/${BACKUP_DIR}/${BACKUP_FILE_NAME}"
+fi
+
+S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${REMOTE_FILE_PATH}"
 
 aws configure set default.s3.multipart_chunksize 50MB
-
-S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${DB_BACKUP_ROOT}/${BACKUP_DIR}/${BACKUP_FILE_NAME}"
 
 pg_dump --format=custom -Z 5 -d "$DATABASE_URL" | aws s3 cp - "$S3_FILE_PATH"
