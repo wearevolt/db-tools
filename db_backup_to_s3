@@ -126,7 +126,7 @@ fi
 
 if [[ -z "$BACKUP_FILE_NAME" ]]; then
   BACKUP_FILE_NAME=$(
-    date +"${BACKUP_FILE_PREFIX}${DB_BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc
+    date +"${BACKUP_FILE_PREFIX}${BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc
   )
 fi
 
