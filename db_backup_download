@@ -11,7 +11,14 @@ set -e
 # DB_BACKUP_ROOT=
 # DB_BACKUP_BASE_NAME=
 
-ROOT_DIR="$( git rev-parse --show-toplevel )"
+ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
+
+if [[ -z $ROOT_DIR ]]; then
+  TMP_DIR=$ROOT_DIR/tmp
+else
+  TMP_DIR=/tmp
+fi
+
 
 if [[ -z "$RAILS_ENV" ]]; then
   RAILS_ENV=development
@@ -84,7 +91,7 @@ if [[ ! -z "$LOCAL_FILE" ]]; then
 fi
 
 if [[ -z "$DUMPS_DIR" ]]; then
-  DUMPS_DIR=${ROOT_DIR}/tmp/dumps
+  DUMPS_DIR=$TMP_DIR/dumps
 fi
 
 
