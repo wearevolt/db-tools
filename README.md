@@ -16,7 +16,7 @@ DB_BACKUP_BASE_NAME=cc_edit_dev
 
 Create backup and upload it to configured s3 bucket
 ```
-bin/db_backup_to_s3 [--name-prefix="some_prefix_"] [--name-suffix="_some_suffix"]
+db_backup_to_s3 [--name-prefix="some_prefix_"] [--name-suffix="_some_suffix"]
 ```
 
 Remote backup file key generated using mask,
@@ -30,7 +30,7 @@ $DB_BACKUP_ROOT/$Y/$Y-$m/$Y-$m-$d/${NAME_PREFIX}${DB_BACKUP_BASE_NAME}_$Y_$m_$d_
 
 List backups with given prefix:
 ```
-bin/db_ls_backups \
+db_ls_backups \
   [--prefix=<dev/cc_edit_dev>] \
   [--left-bound="00:00 today UTC"] \
   [--right-bound="00:00 tomorrow UTC"] \
@@ -49,23 +49,23 @@ and right parameter is set to left bound + 1 day.
 Download latest db backup and restore it to a newly created database:
 
 ```
-bin/db_backup_restore
+db_backup_restore
 ```
 
 Download latest db backup and restore it to an existing database:
 
 ```
-bin/db_backup_restore --create-database=false
+db_backup_restore --create-database=false
 ```
 
 Download given db backup and restore it to newly created database:
 ```
-bin/db_backup_restore --remote-file=foo/bar/some-remote-file-path.dump
+db_backup_restore --remote-file=foo/bar/some-remote-file-path.dump
 ```
 
 Download db backup from sugned url and restore it to an existing database:
 ```
-bin/db_backup_restore \
+db_backup_restore \
   --signed-url=http://example.com/foo/bar/some-remote-file-path.dump \
   --create-database=false
 ```

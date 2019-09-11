@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Configuration
 # following configuration parameters required:
 # DB_BACKUP_AWS_ACCESS_KEY_ID=
@@ -9,7 +11,7 @@
 # DB_BACKUP_ROOT=
 # DB_BACKUP_BASE_NAME=
 
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." >/dev/null 2>&1 && pwd )"
+ROOT_DIR="$( git rev-parse --show-toplevel )"
 
 if [[ -z "$RAILS_ENV" ]]; then
   RAILS_ENV=development
