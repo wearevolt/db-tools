@@ -24,12 +24,16 @@ if [[ -z "$RAILS_ENV" ]]; then
 fi
 
 if [ "$RAILS_ENV" != "production" ]; then
-  if [[ -f .env ]]; then
+  if [[ -f ${ROOT_DIR}/.env ]]; then
     . ${ROOT_DIR}/.env
   fi
 
-  if [[ -f .env.${RAILS_ENV} ]]; then
+  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
     . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
+    . ${ROOT_DIR}/.env.db_tools
   fi
 fi
 

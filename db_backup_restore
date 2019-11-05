@@ -13,10 +13,10 @@ set -e
 
 ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
 
-if [[ -z $ROOT_DIR ]]; then
-  TMP_DIR=$ROOT_DIR/tmp
-else
+if [[ -z "$ROOT_DIR" ]]; then
   TMP_DIR=/tmp
+else
+  TMP_DIR=$ROOT_DIR/tmp
 fi
 
 if [[ -z "$RAILS_ENV" ]]; then
@@ -24,12 +24,16 @@ if [[ -z "$RAILS_ENV" ]]; then
 fi
 
 if [ "$RAILS_ENV" != "production" ]; then
-  if [[ -f .env ]]; then
+  if [[ -f ${ROOT_DIR}/.env ]]; then
     . ${ROOT_DIR}/.env
   fi
 
-  if [[ -f .env.${RAILS_ENV} ]]; then
+  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
     . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
+    . ${ROOT_DIR}/.env.db_tools
   fi
 fi
 
@@ -45,11 +49,11 @@ do
 
   case $key in
     -dd|--dumps-dir)
-      DUMPS_DIR=$2
+      DB_BACKUP_DUMPS_DIR=$2
       shift 2
       ;;
     -dd=*|--dumps-dir=*)
-      DUMPS_DIR="${1#*=}"
+      DB_BACKUP_DUMPS_DIR="${1#*=}"
       shift 1
       ;;
 
@@ -117,14 +121,16 @@ if [[ -z "$CREATE_DATABASE" ]]; then
   CREATE_DATABASE=true
 fi
 
-if [[ -z "$DUMPS_DIR" ]]; then
-  DUMPS_DIR=$TMP_DIR/dumps
+if [[ -z "$DB_BACKUP_DUMPS_DIR" ]]; then
+  DB_BACKUP_DUMPS_DIR=$TMP_DIR/dumps
 fi
+
+mkdir -p $DB_BACKUP_DUMPS_DIR
 
 if [[ "$SKIP_DOWNLOADING" != "true" ]]; then
   LOCAL_FILE="$(
     db_backup_download \
-      --dd "$DUMPS_DIR" \
+      --dd "$DB_BACKUP_DUMPS_DIR" \
       --url "$REMOTE_SIGNED_URL" \
       -rf "$REMOTE_FILE" \
       -lf "$LOCAL_FILE" \
