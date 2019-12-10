@@ -178,8 +178,8 @@ fi
 
 pg_restore --verbose --clean --no-acl --no-owner \
   -d "$DATABASE_URL" \
-  < "$LOCAL_FILE"
-
+  < "$LOCAL_FILE" \
+  || echo "There were some problems during restore"
 
 # pg_restore --verbose --no-acl --no-owner \
 #   --data-only \
