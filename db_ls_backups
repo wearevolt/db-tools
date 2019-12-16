@@ -110,17 +110,27 @@ done
 # LEFT_BOUNDARY=$(date +'%Y-%m-%d' --utc --date="${LEFT_BOUNDARY}")
 # RIGHT_BOUNDARY=$(date +'%Y-%m-%d' --utc --date="${RIGHT_BOUNDARY}")
 
+BACKUP_PREFIX=$(echo ${BACKUP_PREFIX} | sed -r 's/\/$//')
+if [[ -n "${BACKUP_PREFIX}" ]]; then
+  BACKUP_PREFIX=${BACKUP_PREFIX}/
+fi
+
 if [[ ! -z "$NEXT_PAGE_TOKEN" ]]; then
   NEXT_PAGE="--starting-token=$NEXT_PAGE_TOKEN"
 else
   NEXT_PAGE=""
 fi
 
+aws s3 ls \
+  --human-readable \
+  s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
+  | awk "{ \$NF=\"${BACKUP_PREFIX}\"\$NF; print \$0 }"
 
-aws s3api list-objects-v2 --bucket=${DB_BACKUP_TARGET_BUCKET} \
-  --prefix=${BACKUP_PREFIX} \
-  --max-items=500 \
-  $NEXT_PAGE \
-  --query="{ Contents: Contents, NextToken: NextToken }" \
-  | jq -c -r "(.Contents | map(.Key + \" \" + (.Size/1024/1024|floor|tostring)+\"M\") | join(\"\n\")) + \"\nnext \" + .NextToken" \
-  | grep -v -E '^next\s+$'
+
+# aws s3api list-objects-v2 --bucket=${DB_BACKUP_TARGET_BUCKET} \
+#   --prefix=${BACKUP_PREFIX} \
+#   --max-items=500 \
+#   $NEXT_PAGE \
+#   --query="{ Contents: Contents, NextToken: NextToken }" \
+#   | jq -c -r "(.Contents | map(.Key + \" \" + (.Size/1024/1024|floor|tostring)+\"M\") | join(\"\n\")) + \"\nnext \" + .NextToken" \
+#   | grep -v -E '^next\s+$'
