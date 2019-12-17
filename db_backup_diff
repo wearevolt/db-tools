@@ -1,0 +1,87 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'set'
+require 'csv'
+
+require 'pry'
+
+left_dir = ARGV[0]
+right_dir = ARGV[1]
+target_dir = ARGV[2]
+
+if !File.directory?(left_dir) || !File.directory?(right_dir)
+  puts "#{left_dir} and #{right_dir} have to be directories"
+  exit(1)
+end
+
+if File.exists?(target_dir)
+  puts "#{target_dir} must not exist"
+  exit(1)
+end
+
+FileUtils.mkdir(target_dir)
+
+left_files = Dir[File.join(left_dir, '*')].map { |x| File.basename(x) }
+right_files = Dir[File.join(right_dir, '*')].map { |x| File.basename(x) }
+
+all_files = left_files | right_files
+
+data_files = all_files.grep(/\.dat\.gz/)
+
+rest_files = right_files - data_files
+
+patched_files = Set.new
+deleted_files = Set.new
+untouched_files = Set.new
+new_files = Set.new(rest_files)
+
+data_files.each do |f|
+  puts f
+  left_filename = File.join(left_dir, f)
+  right_filename = File.join(right_dir, f)
+  patch_filename = File.join(target_dir, f).gsub(/\.dat\.gz/, ".dat.patch.gz")
+
+  if File.exists?(left_filename) && File.exists?(right_filename)
+    files_differ = !system("cmp --silent #{left_filename} #{right_filename}")
+    # files_differ = patch_body != ""
+    if files_differ
+      patch_body = `zdiff -u #{left_filename} #{right_filename} | gzip`
+
+      File.write(patch_filename, patch_body)
+      patched_files.add(f)
+    else
+      untouched_files.add(f)
+    end
+
+  elsif File.exists?(left_filename)
+    deleted_files.add(f)
+  elsif File.exists?(right_filename)
+    new_files.add(f)
+  end
+end
+
+new_files.each do |f|
+  FileUtils.cp(
+    File.join(right_dir, f),
+    File.join(target_dir, f),
+  )
+end
+
+CSV.open(File.join(target_dir, 'backup_diff.csv'), "wt") do |csv|
+  csv << ["operation", "file_name"]
+  all_files.each do |f|
+    operation = \
+      if patched_files.include?(f)
+        'P'
+      elsif deleted_files.include?(f)
+        'D'
+      elsif new_files.include?(f)
+        'N'
+      elsif untouched_files.include?(f)
+        '-'
+      end
+
+    csv << [operation, f]
+  end
+end
