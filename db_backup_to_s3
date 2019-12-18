@@ -138,7 +138,7 @@ fi
 
 if [[ -z "$BACKUP_FILE_NAME" ]]; then
   BACKUP_FILE_NAME=$(
-    date +"${BACKUP_FILE_PREFIX}${BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc
+    date +"${BACKUP_FILE_PREFIX}${BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.tar" --utc
   )
 fi
 
@@ -150,6 +150,16 @@ S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${REMOTE_FILE_PATH}"
 
 aws configure set default.s3.multipart_chunksize 50MB
 
-pg_dump --format=custom -Z 5 -d "$DATABASE_URL" | aws s3 cp - "$S3_FILE_PATH"
+BACKUP_TARGET_DIR=${TMP_DIR}/${BACKUP_FILE_NAME}
+
+echo "Local backup stored at ${BACKUP_TARGET_DIR}"
+
+mkdir ${BACKUP_TARGET_DIR}
+
+pg_dump -j$(nproc) --format=directory -Z 5 -d "${DATABASE_URL}" -f ${BACKUP_TARGET_DIR}
+
+tar cf - -C ${BACKUP_TARGET_DIR} . | aws s3 cp - "${S3_FILE_PATH}"
+
+rm -r ${BACKUP_TARGET_DIR}
 
 echo "Backed successfully up to: ${REMOTE_FILE_PATH}"
