@@ -157,8 +157,10 @@ echo "Local backup stored at ${BACKUP_TARGET_DIR}"
 mkdir ${BACKUP_TARGET_DIR}
 
 pg_dump -j$(nproc) --format=directory -Z 5 -d "${DATABASE_URL}" -f ${BACKUP_TARGET_DIR}
+(cd ${BACKUP_TARGET_DIR} && md5sum --tag -b * > ./backup_manifest.md5)
 
 tar cf - -C ${BACKUP_TARGET_DIR} . | aws s3 cp - "${S3_FILE_PATH}"
+aws s3 cp "${BACKUP_TARGET_DIR}/backup_manifest.md5" "${S3_FILE_PATH}.md5"
 
 rm -r ${BACKUP_TARGET_DIR}
 
