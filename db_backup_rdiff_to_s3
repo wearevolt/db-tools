@@ -131,7 +131,7 @@ db_backup_download_rdiff -lf "${TMP_BACKUP_DIR}/incremental" -rf "$REMOTE_FILE_P
 
 # 4. Perform diff backup
 echo "Performing rdiff-backup"
-rdiff-backup -v 9 "${TMP_BACKUP_DIR}/current" "${TMP_BACKUP_DIR}/incremental"
+rdiff-backup --use-compatible-timestamps -v 9 "${TMP_BACKUP_DIR}/current" "${TMP_BACKUP_DIR}/incremental"
 
 # 5. Upload diff files
 aws s3 sync --size-only "${TMP_BACKUP_DIR}/incremental" "${S3_FILE_PATH}"
