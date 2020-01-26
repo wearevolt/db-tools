@@ -1,0 +1,117 @@
+#!/bin/bash
+
+set -e
+
+# Configuration
+# following configuration parameters required:
+# DB_BACKUP_AWS_ACCESS_KEY_ID=
+# DB_BACKUP_AWS_SECRET_ACCESS_KEY=
+# DB_BACKUP_AWS_DEFAULT_REGION=
+# DB_BACKUP_TARGET_BUCKET=
+# DB_BACKUP_ROOT=
+# DB_BACKUP_BASE_NAME=
+
+ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
+
+if [[ -n $ROOT_DIR ]]; then
+  TMP_DIR=$ROOT_DIR/tmp
+else
+  TMP_DIR=/tmp
+fi
+
+if [[ -z "$RAILS_ENV" ]]; then
+  RAILS_ENV=development
+fi
+
+if [ "$RAILS_ENV" != "production" ]; then
+  if [[ -f ${ROOT_DIR}/.env ]]; then
+    . ${ROOT_DIR}/.env
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
+    . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
+    . ${ROOT_DIR}/.env.db_tools
+  fi
+fi
+
+export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
+export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
+
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -dd|--dumps-dir)
+      DB_BACKUP_DUMPS_DIR=$2
+      shift 2
+      ;;
+    -dd=*|--dumps-dir=*)
+      DB_BACKUP_DUMPS_DIR="${1#*=}"
+      shift 1
+      ;;
+
+    # -rf|--remote-file)
+    #   REMOTE_FILE=$2
+    #   shift 2
+    #   ;;
+    # -rf=*|--remote-file=*)
+    #   REMOTE_FILE="${1#*=}"
+    #   shift 1
+    #   ;;
+
+    -lf|--local-file)
+      LOCAL_FILE=$2
+      shift 2
+      ;;
+    -lf=*|--local-file=*)
+      LOCAL_FILE="${1#*=}"
+      shift 1
+      ;;
+
+    *)
+      shift 1
+      ;;
+  esac
+done
+
+
+if [[ -z "${LOCAL_FILE}" ]]; then
+  echo "--local-file param required">&2
+  exit 1
+fi
+
+BACKUP_VERSIONS=$(
+  rdiff-backup --use-compatible-timestamps --list-increments "${LOCAL_FILE}" \
+    | tail -n +2 \
+    | sed 's/\s*increments[^[:space:]]*\s*//g' \
+    | sed 's/Current mirror:\s*//g' \
+    | xargs -I{} date --iso-8601=seconds --utc --date={}
+)
+
+echo "$BACKUP_VERSIONS"
+
+
+echo "Paste desired timestamp here"
+read VERSION
+
+
+if [[ -z "$VERSION" ]]; then
+  echo "No timestamp selected">&2
+  exit 1
+fi
+
+if [[ -z "$DUMP_DIR" ]]; then
+  DUMP_DIR=$TMP_DIR/dumps/restore
+fi
+
+mkdir -p $DUMP_DIR
+
+rdiff-backup --restore-as-of=$VERSION $LOCAL_FILE $DUMP_DIR
+
+echo "Restored version ${VERSION} to $DUMP_DIR"
