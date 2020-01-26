@@ -1,0 +1,159 @@
+#!/bin/bash
+
+set -e
+
+# Configuration
+# following configuration parameters required:
+# DB_BACKUP_AWS_ACCESS_KEY_ID=
+# DB_BACKUP_AWS_SECRET_ACCESS_KEY=
+# DB_BACKUP_AWS_DEFAULT_REGION=
+# DB_BACKUP_TARGET_BUCKET=
+# DB_BACKUP_ROOT=
+# DB_BACKUP_BASE_NAME=
+
+ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
+
+if [[ -z $ROOT_DIR ]]; then
+  TMP_DIR=$ROOT_DIR/tmp
+elif [[ -n "$TMPDIR" ]]; then
+  TMP_DIR=$TMPDIR
+else
+  TMP_DIR=/tmp
+fi
+
+if [[ -z "$RAILS_ENV" ]]; then
+  RAILS_ENV=development
+fi
+
+if [ "$RAILS_ENV" != "production" ]; then
+  if [[ -f ${ROOT_DIR}/.env ]]; then
+    . ${ROOT_DIR}/.env
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
+    . ${ROOT_DIR}/.env.${RAILS_ENV}
+  fi
+
+  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
+    . ${ROOT_DIR}/.env.db_tools
+  fi
+fi
+
+export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
+export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
+export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -bn|--base-name)
+      BACKUP_BASE_NAME=$2
+      shift 2
+      ;;
+    -bn=*|--base-name=*)
+      BACKUP_BASE_NAME="${1#*=}"
+      shift 1
+      ;;
+
+    -db|--database-url)
+      DATABASE_URL=$2
+      shift 2
+      ;;
+    -db=*|--database-url=*)
+      DATABASE_URL="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-root)
+      BACKUP_ROOT=$2
+      shift 2
+      ;;
+    --backup-root=*)
+      BACKUP_ROOT="${1#*=}"
+      shift 1
+      ;;
+
+    --backup-remote-file-path)
+      REMOTE_FILE_PATH=$2
+      shift 2
+      ;;
+    --backup-remote-file-path=*)
+      REMOTE_FILE_PATH="${1#*=}"
+      shift 1
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$BACKUP_BASE_NAME" ]]; then
+  BACKUP_BASE_NAME=$DB_BACKUP_BASE_NAME
+fi
+
+if [[ -z "$BACKUP_ROOT" ]]; then
+  BACKUP_ROOT=${DB_BACKUP_ROOT}
+fi
+
+BASE_BACKUP_DATE=$(
+    (
+        date --iso-8601 --utc
+        date --iso-8601 --utc --date="Sunday"
+    ) | sort | tail -n1
+)
+
+FULL_BACKUP_FOLDER=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc --date=${BASE_BACKUP_DATE})
+
+TMP_BACKUP_DIR=${TMP_DIR}/dumps/$BACKUP_BASE_NAME
+
+mkdir -p $TMP_BACKUP_DIR
+
+
+if [[ -z "$BACKUP_FILE_NAME" ]]; then
+  BACKUP_FILE_NAME=$( date +"${BACKUP_BASE_NAME}_%Y_%m_%d" --utc --date=${BASE_BACKUP_DATE} )
+fi
+
+if [[ -z "$REMOTE_FILE_PATH" ]]; then
+  REMOTE_FILE_PATH="${BACKUP_ROOT}/${FULL_BACKUP_FOLDER}/${BACKUP_FILE_NAME}"
+fi
+
+S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${REMOTE_FILE_PATH}"
+
+# 1. Prepare local db dump
+echo "Backing up to ${TMP_BACKUP_DIR}/current"
+time pg_dump -j4 --format=directory -Z 5 -d "$DATABASE_URL" --file="${TMP_BACKUP_DIR}/current"
+
+# 2. Download existing backup
+echo "Downloading existing dump to ${TMP_BACKUP_DIR}/incremental"
+aws s3 sync --size-only "${S3_FILE_PATH}" "${TMP_BACKUP_DIR}/incremental"
+
+# 3. Remove old line markers
+
+if [[ -d ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data ]]; then
+  echo "Removing old head markers"
+
+  FILES_TO_REMOVE=$(ls ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data/current_mirror* -1 | sort | head -n -1)
+  echo "Removing $FILES_TO_REMOVE"
+  if [[ -n "$FILES_TO_REMOVE" ]]; then
+    rm $FILES_TO_REMOVE
+  fi
+
+  FILES_TO_REMOVE=$(ls ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data/mirror_metadata*snapshot.gz  -1 | sort | head -n -1)
+  echo "Removing $FILES_TO_REMOVE"
+  if [[ -n "$FILES_TO_REMOVE" ]]; then
+    rm $FILES_TO_REMOVE
+  fi
+fi
+
+# 4. Perform diff backup
+echo "Performing rdiff-backup"
+rdiff-backup -v 9 "${TMP_BACKUP_DIR}/current" "${TMP_BACKUP_DIR}/incremental"
+
+# 5. Upload diff files
+aws s3 sync --size-only "${TMP_BACKUP_DIR}/incremental" "${S3_FILE_PATH}" 
+
+rm "${TMP_BACKUP_DIR}" -rf
+
+echo "Backed successfully up to: ${REMOTE_FILE_PATH}"
