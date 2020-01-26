@@ -13,7 +13,7 @@ set -e
 
 ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
 
-if [[ -z $ROOT_DIR ]]; then
+if [[ -n $ROOT_DIR ]]; then
   TMP_DIR=$ROOT_DIR/tmp
 elif [[ -n "$TMPDIR" ]]; then
   TMP_DIR=$TMPDIR
@@ -127,32 +127,14 @@ time pg_dump -j4 --format=directory -Z 5 -d "$DATABASE_URL" --file="${TMP_BACKUP
 
 # 2. Download existing backup
 echo "Downloading existing dump to ${TMP_BACKUP_DIR}/incremental"
-aws s3 sync --size-only "${S3_FILE_PATH}" "${TMP_BACKUP_DIR}/incremental"
-
-# 3. Remove old line markers
-
-if [[ -d ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data ]]; then
-  echo "Removing old head markers"
-
-  FILES_TO_REMOVE=$(ls ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data/current_mirror* -1 | sort | head -n -1)
-  echo "Removing $FILES_TO_REMOVE"
-  if [[ -n "$FILES_TO_REMOVE" ]]; then
-    rm $FILES_TO_REMOVE
-  fi
-
-  FILES_TO_REMOVE=$(ls ${TMP_BACKUP_DIR}/incremental/rdiff-backup-data/mirror_metadata*snapshot.gz  -1 | sort | head -n -1)
-  echo "Removing $FILES_TO_REMOVE"
-  if [[ -n "$FILES_TO_REMOVE" ]]; then
-    rm $FILES_TO_REMOVE
-  fi
-fi
+db_backup_download_rdiff -lf "${TMP_BACKUP_DIR}/incremental" -rf "$REMOTE_FILE_PATH"
 
 # 4. Perform diff backup
 echo "Performing rdiff-backup"
 rdiff-backup -v 9 "${TMP_BACKUP_DIR}/current" "${TMP_BACKUP_DIR}/incremental"
 
 # 5. Upload diff files
-aws s3 sync --size-only "${TMP_BACKUP_DIR}/incremental" "${S3_FILE_PATH}" 
+aws s3 sync --size-only "${TMP_BACKUP_DIR}/incremental" "${S3_FILE_PATH}"
 
 rm "${TMP_BACKUP_DIR}" -rf
 
