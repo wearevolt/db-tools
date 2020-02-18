@@ -22,6 +22,8 @@ do
       shift 1
       ;;
     *)
+      shift 1
+      ;;
   esac
 done
 
@@ -57,10 +59,11 @@ if [[ "$DO_CHECK" == "true" ]]; then
     DUMP_SIZE_B=$(du -bs $LOCAL_FILE_PATH | awk '{ print $1 }')
 
     echo "Restoring dump ${LOCAL_FILE_PATH}"
-    db_backup_restore --skip-downloading \
+    db_backup_restore \
+      --skip-downloading \
       -db $DB_CHECK_DATABASE_URL \
       --create-database=false -lf $LOCAL_FILE_PATH \
-      2>&1 \
+      2>&1  \
       | awk "{ print \"$DUMP_NAME: \" \$0 }"
 
     QUERY_SIZE_SQL=$(cat <<-SQL

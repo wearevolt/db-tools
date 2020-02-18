@@ -93,6 +93,12 @@ do
   esac
 done
 
+if [[ "$WORKING_ENV" != "production" ]]; then
+  SKIP_MATERIALIZED_VIEWS=true
+  SKIP_FOREIGN_TABLES=true
+  TABLES_TO_SKIP+=('public.versions')
+fi
+
 if [[ -z "$CREATE_DATABASE" ]]; then
   CREATE_DATABASE=true
 fi
