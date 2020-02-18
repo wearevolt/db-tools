@@ -2,6 +2,13 @@
 
 set -e
 
+trap 'on_error $LINENO' ERR
+
+on_error() {
+  LINE=$1
+  printf "Error at LINE NUMBER: $LINE"
+}
+
 # Configuration
 # following configuration parameters required:
 # DB_BACKUP_AWS_ACCESS_KEY_ID=
@@ -11,10 +18,10 @@ set -e
 # DB_BACKUP_ROOT=
 # DB_BACKUP_BASE_NAME=
 
-ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
+BASE_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
 
-if [[ -z $ROOT_DIR ]]; then
-  TMP_DIR=$ROOT_DIR/tmp
+if [[ -z $BASE_DIR ]]; then
+  TMP_DIR=$BASE_DIR/tmp
 else
   TMP_DIR=/tmp
 fi
@@ -24,16 +31,16 @@ if [[ -z "$RAILS_ENV" ]]; then
 fi
 
 if [ "$RAILS_ENV" != "production" ]; then
-  if [[ -f ${ROOT_DIR}/.env ]]; then
-    . ${ROOT_DIR}/.env
+  if [[ -f ${BASE_DIR}/.env ]]; then
+    . ${BASE_DIR}/.env
   fi
 
-  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
-    . ${ROOT_DIR}/.env.${RAILS_ENV}
+  if [[ -f ${BASE_DIR}/.env.${RAILS_ENV} ]]; then
+    . ${BASE_DIR}/.env.${RAILS_ENV}
   fi
 
-  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
-    . ${ROOT_DIR}/.env.db_tools
+  if [[ -f ${BASE_DIR}/.env.db_tools ]]; then
+    . ${BASE_DIR}/.env.db_tools
   fi
 fi
 

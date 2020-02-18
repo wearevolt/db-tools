@@ -1,48 +1,11 @@
 #!/bin/bash
 
-set -e
-
-# Configuration
-# following configuration parameters required:
-# DB_BACKUP_AWS_ACCESS_KEY_ID=
-# DB_BACKUP_AWS_SECRET_ACCESS_KEY=
-# DB_BACKUP_AWS_DEFAULT_REGION=
-# DB_BACKUP_TARGET_BUCKET=
-# DB_BACKUP_ROOT=
-# DB_BACKUP_BASE_NAME=
-
-ROOT_DIR="$( git rev-parse --show-toplevel 2>/dev/null || echo '')"
-
-if [[ -z $ROOT_DIR ]]; then
-  TMP_DIR=$ROOT_DIR/tmp
-else
-  TMP_DIR=/tmp
-fi
+## Peform setup
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${SCRIPT_DIR}/db_backup_setup
 
 
-if [[ -z "$RAILS_ENV" ]]; then
-  RAILS_ENV=development
-fi
-
-if [ "$RAILS_ENV" != "production" ]; then
-  if [[ -f ${ROOT_DIR}/.env ]]; then
-    . ${ROOT_DIR}/.env
-  fi
-
-  if [[ -f ${ROOT_DIR}/.env.${RAILS_ENV} ]]; then
-    . ${ROOT_DIR}/.env.${RAILS_ENV}
-  fi
-
-  if [[ -f ${ROOT_DIR}/.env.db_tools ]]; then
-    . ${ROOT_DIR}/.env.db_tools
-  fi
-fi
-
-export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
-export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
-export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
-
-
+## Process params
 while [[ $# -gt 0 ]]
 do
   key="$1"
@@ -117,6 +80,7 @@ mkdir -p $DB_BACKUP_DUMPS_DIR
 if [[ -z $REMOTE_SIGNED_URL ]]; then
   S3_FILE_PATH=s3://$DB_BACKUP_TARGET_BUCKET/$REMOTE_FILE
 
+  echo aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors >&2
   aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors
 else
   wget "$REMOTE_SIGNED_URL" -O "$LOCAL_FILE"
