@@ -135,8 +135,7 @@ if [[ -n "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKI
 
   for TABLE_NAME in "${TABLES_TO_SKIP[@]}"; do
     echo "Skipping table ${TABLE_NAME}"
-    sed --in-place -E "/${TABLE_NAME/./\\s+}/d" $LIST_FILE
-    sed --in-place -E "/${TABLE_NAME/./\\s+TABLE\\s}/d" $LIST_FILE
+    sed --in-place -E "/TABLE\\s+DATA\\s+${TABLE_NAME/./\\s+}/d" $LIST_FILE
   done
 
   if [[ "$SKIP_MATERIALIZED_VIEWS" == "true" ]]; then
