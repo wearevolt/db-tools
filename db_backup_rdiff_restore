@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+## Peform setup
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${SCRIPT_DIR}/db_backup_setup
+
+
+## Process params
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    -dd|--dumps-dir)
+      DB_BACKUP_DUMPS_DIR=$2
+      shift 2
+      ;;
+    -dd=*|--dumps-dir=*)
+      DB_BACKUP_DUMPS_DIR="${1#*=}"
+      shift 1
+      ;;
+
+    # -rf|--remote-file)
+    #   REMOTE_FILE=$2
+    #   shift 2
+    #   ;;
+    # -rf=*|--remote-file=*)
+    #   REMOTE_FILE="${1#*=}"
+    #   shift 1
+    #   ;;
+
+    -lf|--local-file)
+      LOCAL_FILE=$2
+      shift 2
+      ;;
+    -lf=*|--local-file=*)
+      LOCAL_FILE="${1#*=}"
+      shift 1
+      ;;
+
+    *)
+      shift 1
+      ;;
+  esac
+done
+
+
+if [[ -z "${LOCAL_FILE}" ]]; then
+  echo "--local-file param required">&2
+  exit 1
+fi
+
+BACKUP_VERSIONS=$(
+  rdiff-backup --use-compatible-timestamps --list-increments "${LOCAL_FILE}" \
+    | tail -n +2 \
+    | sed 's/\s*increments[^[:space:]]*\s*//g' \
+    | sed 's/Current mirror:\s*//g' \
+    | xargs -I{} date --iso-8601=seconds --utc --date={}
+)
+
+echo "$BACKUP_VERSIONS"
+
+
+echo "Paste desired timestamp here"
+read VERSION
+
+
+if [[ -z "$VERSION" ]]; then
+  echo "No timestamp selected">&2
+  exit 1
+fi
+
+if [[ -z "$DUMP_DIR" ]]; then
+  DUMP_DIR=$TMP_DIR/dumps/restore
+fi
+
+mkdir -p $DUMP_DIR
+
+rdiff-backup --restore-as-of=$VERSION $LOCAL_FILE $DUMP_DIR
+
+echo "Restored version ${VERSION} to $DUMP_DIR"

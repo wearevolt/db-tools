@@ -4,6 +4,7 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${SCRIPT_DIR}/db_backup_setup
 
+
 ## Process params
 while [[ $# -gt 0 ]]
 do
@@ -16,24 +17,6 @@ do
       ;;
     -bn=*|--base-name=*)
       BACKUP_BASE_NAME="${1#*=}"
-      shift 1
-      ;;
-
-    -npx|--name-prefix)
-      BACKUP_FILE_PREFIX=$2
-      shift 2
-      ;;
-    -npx=*|--name-prefix=*)
-      BACKUP_FILE_PREFIX="${1#*=}"
-      shift 1
-      ;;
-
-    -nsx|--name-suffix)
-      BACKUP_FILE_SUFFIX=$2
-      shift 2
-      ;;
-    -nsx=*|--name-suffix=*)
-      BACKUP_FILE_SUFFIX="${1#*=}"
       shift 1
       ;;
 
@@ -52,24 +35,6 @@ do
       ;;
     --backup-root=*)
       BACKUP_ROOT="${1#*=}"
-      shift 1
-      ;;
-
-    --backup-dir)
-      BACKUP_DIR=$2
-      shift 2
-      ;;
-    --backup-dir=*)
-      BACKUP_DIR="${1#*=}"
-      shift 1
-      ;;
-
-    --backup-file-name)
-      BACKUP_FILE_NAME=$2
-      shift 2
-      ;;
-    --backup-file-name=*)
-      BACKUP_FILE_NAME="${1#*=}"
       shift 1
       ;;
 
@@ -95,24 +60,45 @@ if [[ -z "$BACKUP_ROOT" ]]; then
   BACKUP_ROOT=${DB_BACKUP_ROOT}
 fi
 
-if [[ -z "$BACKUP_DIR" ]]; then
-  BACKUP_DIR=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc)
-fi
+BASE_BACKUP_DATE=$(
+    (
+        date --iso-8601 --utc
+        date --iso-8601 --utc --date="Sunday"
+    ) | sort | tail -n1
+)
+
+FULL_BACKUP_FOLDER=$(date +"%Y/%Y-%m/%Y-%m-%d" --utc --date=${BASE_BACKUP_DATE})
+
+TMP_BACKUP_DIR=${TMP_DIR}/dumps/$BACKUP_BASE_NAME
+
+mkdir -p $TMP_BACKUP_DIR
+
 
 if [[ -z "$BACKUP_FILE_NAME" ]]; then
-  BACKUP_FILE_NAME=$(
-    date +"${BACKUP_FILE_PREFIX}${BACKUP_BASE_NAME}_%Y_%m_%d__%H_%M_%S${BACKUP_FILE_SUFFIX}.dump" --utc
-  )
+  BACKUP_FILE_NAME=$( date +"${BACKUP_BASE_NAME}_%Y_%m_%d" --utc --date=${BASE_BACKUP_DATE} )
 fi
 
 if [[ -z "$REMOTE_FILE_PATH" ]]; then
-  REMOTE_FILE_PATH="${BACKUP_ROOT}/${BACKUP_DIR}/${BACKUP_FILE_NAME}"
+  REMOTE_FILE_PATH="${BACKUP_ROOT}/${FULL_BACKUP_FOLDER}/${BACKUP_FILE_NAME}"
 fi
 
 S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${REMOTE_FILE_PATH}"
 
-aws configure set default.s3.multipart_chunksize 50MB
+# 1. Prepare local db dump
+echo "Backing up to ${TMP_BACKUP_DIR}/current"
+time pg_dump -j4 --format=directory -Z 5 -d "$DATABASE_URL" --file="${TMP_BACKUP_DIR}/current"
 
-pg_dump --format=custom -Z 5 -d "$DATABASE_URL" | aws s3 cp - "$S3_FILE_PATH"
+# 2. Download existing backup
+echo "Downloading existing dump to ${TMP_BACKUP_DIR}/incremental"
+db_backup_download_rdiff -lf "${TMP_BACKUP_DIR}/incremental" -rf "$REMOTE_FILE_PATH"
+
+# 4. Perform diff backup
+echo "Performing rdiff-backup"
+rdiff-backup --use-compatible-timestamps -v 9 "${TMP_BACKUP_DIR}/current" "${TMP_BACKUP_DIR}/incremental"
+
+# 5. Upload diff files
+aws s3 sync --size-only "${TMP_BACKUP_DIR}/incremental" "${S3_FILE_PATH}"
+
+rm "${TMP_BACKUP_DIR}" -rf
 
 echo "Backed successfully up to: ${REMOTE_FILE_PATH}"

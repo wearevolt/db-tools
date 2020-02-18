@@ -4,6 +4,7 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${SCRIPT_DIR}/db_backup_setup
 
+
 ## Process params
 while [[ $# -gt 0 ]]
 do
@@ -28,15 +29,6 @@ do
       shift 1
       ;;
 
-    --url|--signed-url)
-      REMOTE_SIGNED_URL=$2
-      shift 2
-      ;;
-    --url=*|--signed-url=*)
-      REMOTE_SIGNED_URL="${1#*=}"
-      shift 1
-      ;;
-
     -lf|--local-file)
       LOCAL_FILE=$2
       shift 2
@@ -52,7 +44,7 @@ do
   esac
 done
 
-if [[ ! -z "$LOCAL_FILE" ]]; then
+if [[ -n "$LOCAL_FILE" ]]; then
   DB_BACKUP_DUMPS_DIR=$(dirname $LOCAL_FILE)
 fi
 
@@ -61,28 +53,38 @@ if [[ -z "$DB_BACKUP_DUMPS_DIR" ]]; then
 fi
 
 
-if [[ ( -z "$REMOTE_FILE" ) && ( ! -z "$REMOTE_SIGNED_URL" ) ]]; then
-  echo "Either --remote-file or --signed-url param required" >&2
+if [[ -z "$REMOTE_FILE"  ]]; then
+  echo "--remote-file param required" >&2
   exit 1
 fi
 
-if [[ -z "$LOCAL_FILE" ]]; then
-  if [[ ! -z "$REMOTE_SIGNED_URL" ]]; then
-    LOCAL_FILE=$DB_BACKUP_DUMPS_DIR/$(basename $REMOTE_SIGNED_URL | cut -d? -f1)
-  else
-    LOCAL_FILE=$DB_BACKUP_DUMPS_DIR/$(basename $REMOTE_FILE)
-  fi
+if [[ -z "$LOCAL_FILE"  ]]; then
+  LOCAL_FILE=$DB_BACKUP_DUMPS_DIR/$(basename $REMOTE_FILE)
 fi
 
 mkdir -p $DB_BACKUP_DUMPS_DIR
 
-if [[ -z $REMOTE_SIGNED_URL ]]; then
-  S3_FILE_PATH=s3://$DB_BACKUP_TARGET_BUCKET/$REMOTE_FILE
+S3_FILE_PATH=s3://$DB_BACKUP_TARGET_BUCKET/$REMOTE_FILE
 
-  # echo aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors >&2
-  aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors
-else
-  wget "$REMOTE_SIGNED_URL" -O "$LOCAL_FILE"
+aws s3 sync --size-only "$S3_FILE_PATH" "$LOCAL_FILE"
+
+# 3. Remove old line markers
+if [[ -d ${LOCAL_FILE}/rdiff-backup-data ]]; then
+  echo "Removing old head markers"
+
+  FILES_TO_REMOVE=$(ls ${LOCAL_FILE}/rdiff-backup-data/current_mirror* -1 | sort | head -n -1)
+  echo "Removing $FILES_TO_REMOVE"
+  if [[ -n "$FILES_TO_REMOVE" ]]; then
+    rm $FILES_TO_REMOVE
+  fi
+
+  FILES_TO_REMOVE=$(ls ${LOCAL_FILE}/rdiff-backup-data/mirror_metadata*snapshot.gz  -1 | sort | head -n -1)
+  echo "Removing $FILES_TO_REMOVE"
+  if [[ -n "$FILES_TO_REMOVE" ]]; then
+    rm $FILES_TO_REMOVE
+  fi
 fi
 
-echo "$LOCAL_FILE"
+echo "Backup downloaded to $LOCAL_FILE"
+
+
