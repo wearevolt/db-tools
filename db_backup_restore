@@ -122,9 +122,7 @@ if [[ ! -f "$LOCAL_FILE" ]]; then
   exit 2
 fi
 
-
-
-if [[ ! -z "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKIP_FOREIGN_TABLES" == "true" ]]; then
+if [[ -n "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKIP_FOREIGN_TABLES" == "true" ]]; then
   LIST_FILE=$LOCAL_FILE.lst
 
   pg_restore --list "$LOCAL_FILE" > $LIST_FILE
@@ -153,8 +151,6 @@ if [[ ! -z "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$S
 else
   TABLES_RESTORE_OPTIONS=""
 fi
-
-exit 1
 
 if [[ "$CREATE_DATABASE" == "true" ]]; then
   SUPERUSER_DATABASE_URL=$(echo $DATABASE_URL | sed -E 's/\/\w+?$/\/postgres/')
