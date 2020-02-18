@@ -45,7 +45,7 @@ fi
 
 
 # 3. load .env files for non production environments
-if [ "$WORKING_ENV" != "production" ]; then
+if [[ "$WORKING_ENV" != "production" ]]; then
   if [[ -f ${BASE_DIR}/.env ]]; then
     . ${BASE_DIR}/.env
   fi
@@ -63,3 +63,9 @@ fi
 export AWS_ACCESS_KEY_ID=${DB_BACKUP_AWS_ACCESS_KEY_ID}
 export AWS_SECRET_ACCESS_KEY=${DB_BACKUP_AWS_SECRET_ACCESS_KEY}
 export AWS_DEFAULT_REGION=${DB_BACKUP_AWS_DEFAULT_REGION}
+
+
+if [[ -z "${DB_BACKUP_DUMPS_DIR}" ]]; then
+  DB_BACKUP_DUMPS_DIR=$TMPDIR/dumps
+  mkdir -p "${DB_BACKUP_DUMPS_DIR}"
+fi
