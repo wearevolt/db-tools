@@ -71,10 +71,22 @@ do
       shift 1
       ;;
 
-    # -st|--skip-table)
-    #   TABLES_TO_SKIP+=($2)
-    #   shift 2
-    #   ;;
+    -skt|--skip-table)
+      TABLES_TO_SKIP+=($2)
+      shift 2
+      ;;
+    -skm|--skip-materialized-views)
+      SKIP_MATERIALIZED_VIEWS=true
+      shift 1
+      ;;
+    -skf|--skip-foreign-tables)
+      SKIP_FOREIGN_TABLES=true
+      shift 1
+      ;;
+    -skv|--skip-versions)
+      TABLES_TO_SKIP+=('public.versions')
+      shift 1
+      ;;
     *)
       shift
       ;;
@@ -91,6 +103,10 @@ fi
 
 mkdir -p $DB_BACKUP_DUMPS_DIR
 
+if [[ -n "$LOCAL_FILE" && -z "${REMOTE_FILE}" && -z "$REMOTE_SIGNED_URL" ]]; then
+  SKIP_DOWNLOADING=true
+fi
+
 if [[ "$SKIP_DOWNLOADING" != "true" ]]; then
   LOCAL_FILE="$(
     db_backup_download \
@@ -101,11 +117,44 @@ if [[ "$SKIP_DOWNLOADING" != "true" ]]; then
   )"
 fi
 
-
 if [[ ! -f "$LOCAL_FILE" ]]; then
   echo "File $LOCAL_FILE not found"
   exit 2
 fi
+
+
+
+if [[ ! -z "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKIP_FOREIGN_TABLES" == "true" ]]; then
+  LIST_FILE=$LOCAL_FILE.lst
+
+  pg_restore --list "$LOCAL_FILE" > $LIST_FILE
+
+  for TABLE_NAME in "${TABLES_TO_SKIP[@]}"; do
+    echo "Skipping table ${TABLE_NAME}"
+    sed --in-place -E "/${TABLE_NAME/./\\s+}/d" $LIST_FILE
+    sed --in-place -E "/${TABLE_NAME/./\\s+TABLE\\s}/d" $LIST_FILE
+  done
+
+  if [[ "$SKIP_MATERIALIZED_VIEWS" == "true" ]]; then
+    echo "Skipping materialized views"
+    sed --in-place -E "/MATERIALIZED\\s+VIEW/d" $LIST_FILE
+  fi
+
+  if [[ "$SKIP_FOREIGN_TABLES" == "true" ]]; then
+    echo "Skipping foreign tables"
+    sed --in-place -E "/FOREIGN\\sDATA\\sWRAPPER/d" $LIST_FILE
+    sed --in-place -E "/FOREIGN\\s+TABLE/d" $LIST_FILE
+  fi
+
+  # TABLES_TO_RESTORE=$(echo "$ALL_TABLES" \
+  #   | grep -v -E "$(IFS=$'\n' ; echo "${TABLES_TO_SKIP[*]}") | tr ';' '|' | sed 's/\./\\./'"
+  # )
+  TABLES_RESTORE_OPTIONS="--use-list=$LIST_FILE"
+else
+  TABLES_RESTORE_OPTIONS=""
+fi
+
+exit 1
 
 if [[ "$CREATE_DATABASE" == "true" ]]; then
   SUPERUSER_DATABASE_URL=$(echo $DATABASE_URL | sed -E 's/\/\w+?$/\/postgres/')
@@ -119,29 +168,9 @@ SQL
   echo "Created database ${CREATED_DB_NAME}"
 fi
 
-
-if [[ ! -z "${TABLES_TO_SKIP[*]}" ]]; then
-  echo ""
-  # NOTE: Doesn't work as expected
-  # ALL_TABLES=$(
-  #   pg_restore -l "$LOCAL_FILE" \
-  #     | grep TABLE \
-  #     | grep -v FOREIGN \
-  #     | grep -v DATA \
-  #     | awk '{ print $5"."$6; }' \
-  #     | sort | uniq
-  # )
-
-  # TABLES_TO_RESTORE=$(echo "$ALL_TABLES" \
-  #   | grep -v -E "$(IFS=$'\n' ; echo "${TABLES_TO_SKIP[*]}") | tr ';' '|' | sed 's/\./\\./'"
-  # )
-  # TABLES_RESTORE_OPTIONS=$(echo "$TABLES_TO_RESTORE" | awk '{ print "--table="$1; }' )
-else
-  TABLES_RESTORE_OPTIONS=""
-fi
-
 pg_restore --verbose --clean --no-acl --no-owner \
   -d "$DATABASE_URL" \
+  $TABLES_RESTORE_OPTIONS \
   < "$LOCAL_FILE" \
   || echo "There were some problems during restore"
 
