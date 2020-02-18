@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+## Peform setup
+DBTOOLS_BASE_DIR=$(dirname $(which db_ls_backups))
+. ${DBTOOLS_BASE_DIR}/db_backup_setup
+
+while [[ $# -gt 0 ]]
+do
+  key="$1"
+
+  case $key in
+    --clean|--cleanup)
+      DO_CLEANUP=true
+      shift 1
+      ;;
+    --download)
+      DO_DOWNLOAD=true
+      shift 1
+      ;;
+    --check)
+      DO_CHECK=true
+      shift 1
+      ;;
+    *)
+  esac
+done
+
+if [[ "$DO_CLEANUP" == "true" ]]; then
+  rm ${DB_BACKUP_DUMPS_DIR}/*
+fi
+
+if [[ "$DO_DOWNLOAD" == "true" ]]; then
+  for REMOTE_FOLDER in $(echo "${DB_REMOTE_BACKUP_FOLDERS[*]}"); do
+    BACKUP_PREFIX=${REMOTE_FOLDER%/}/$(date +"%Y/%Y-%m/%Y-%m-%d/" --utc)
+
+    echo "Listing files for $REMOTE_FOLDER"
+    REMOTE_BACKUP=$( db_ls_backups -p $BACKUP_PREFIX | tail -n 1 )
+    echo $REMOTE_BACKUP
+    REMOTE_FILE_PATH=$(echo $REMOTE_BACKUP | awk 'NF { print $NF }')
+    LOCAL_FILE_PATH=$DB_BACKUP_DUMPS_DIR/$(basename $REMOTE_FILE_PATH)
+    if [[ -z $REMOTE_FILE_PATH ]]; then
+      echo "No this day dump for #{REMOTE_FOLDER}"
+      continue
+    fi
+
+    echo "Downloading $REMOTE_FILE_PATH to $LOCAL_FILE_PATH"
+    db_backup_download -rf $REMOTE_FILE_PATH -lf $LOCAL_FILE_PATH
+  done
+fi
+
+if [[ "$DO_CHECK" == "true" ]]; then
+  DB_SIZES=""
+  DB_NAME=$(basename ${DB_CHECK_DATABASE_URL})
+
+  for LOCAL_FILE_PATH in $(ls -1 ${DB_BACKUP_DUMPS_DIR}/*.dump); do
+    DUMP_NAME=$(basename $LOCAL_FILE_PATH)
+    DUMP_SIZE_B=$(du -bs $LOCAL_FILE_PATH | awk '{ print $1 }')
+
+    echo "Restoring dump ${LOCAL_FILE_PATH}"
+    db_backup_restore --skip-downloading \
+      -db $DB_CHECK_DATABASE_URL \
+      --create-database=false -lf $LOCAL_FILE_PATH \
+      2>&1 \
+      | awk "{ print \"$DUMP_NAME: \" \$0 }"
+
+    QUERY_SIZE_SQL=$(cat <<-SQL
+      SELECT
+        :dump_name::VARCHAR AS dump_name,
+        :dump_size_b::BIGINT AS dump_size,
+        pg_size_pretty(:dump_size_b::BIGINT) AS dump_size_pretty,
+        pg_database_size(:db_name) AS restored_size,
+        pg_size_pretty(pg_database_size(:db_name)) AS restored_size_pretty
+      ;
+SQL
+)
+
+    DB_SIZE=$(
+      echo "${QUERY_SIZE_SQL}" \
+         | psql --csv \
+           --variable=dump_name="'$DUMP_NAME'" \
+           --variable=dump_size_b="${DUMP_SIZE_B}" \
+           --variable=db_name="'${DB_NAME}'" \
+           --dbname="${DB_CHECK_DATABASE_URL}"
+    )
+
+    DB_SIZES="${DB_SIZES}\n${DB_SIZE}"
+  done
+  echo -e "$DB_SIZES" | awk '!x[$0]++' | column -t -s,
+fi
+
