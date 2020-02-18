@@ -146,6 +146,8 @@ if [[ -n "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKI
 
   if [[ "$SKIP_FOREIGN_TABLES" == "true" ]]; then
     echo "Skipping foreign tables"
+    sed --in-place -E "/SERVER/d" $LIST_FILE
+    sed --in-place -E "/USER\\MAPPING\\sWRAPPER/d" $LIST_FILE
     sed --in-place -E "/FOREIGN\\sDATA\\sWRAPPER/d" $LIST_FILE
     sed --in-place -E "/FOREIGN\\s+TABLE/d" $LIST_FILE
   fi
