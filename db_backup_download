@@ -4,7 +4,6 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${SCRIPT_DIR}/db_backup_setup
 
-
 ## Process params
 while [[ $# -gt 0 ]]
 do
@@ -80,7 +79,7 @@ mkdir -p $DB_BACKUP_DUMPS_DIR
 if [[ -z $REMOTE_SIGNED_URL ]]; then
   S3_FILE_PATH=s3://$DB_BACKUP_TARGET_BUCKET/$REMOTE_FILE
 
-  echo aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors >&2
+  # echo aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors >&2
   aws s3 cp "$S3_FILE_PATH" "$LOCAL_FILE" --only-show-errors
 else
   wget "$REMOTE_SIGNED_URL" -O "$LOCAL_FILE"
