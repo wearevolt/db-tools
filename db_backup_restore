@@ -140,7 +140,7 @@ if [[ -n "${TABLES_TO_SKIP[*]}" || "$SKIP_MATERIALIZED_VIEWS" == "true" || "$SKI
 
   if [[ "$SKIP_MATERIALIZED_VIEWS" == "true" ]]; then
     echo "Skipping materialized views"
-    sed --in-place -E "/MATERIALIZED\\s+VIEW/d" $LIST_FILE
+    sed --in-place -E "/MATERIALIZED\\s+VIEW\\s+DATA/d" $LIST_FILE
   fi
 
   if [[ "$SKIP_FOREIGN_TABLES" == "true" ]]; then
