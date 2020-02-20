@@ -85,6 +85,7 @@ do
       ;;
     -skv|--skip-versions)
       TABLES_TO_SKIP+=('public.versions')
+      TABLES_TO_SKIP+=('audit.logged_actions')
       shift 1
       ;;
     *)
@@ -97,6 +98,7 @@ if [[ "$WORKING_ENV" != "production" ]]; then
   SKIP_MATERIALIZED_VIEWS=true
   SKIP_FOREIGN_TABLES=true
   TABLES_TO_SKIP+=('public.versions')
+  TABLES_TO_SKIP+=('audit.logged_actions')
 fi
 
 if [[ -z "$CREATE_DATABASE" ]]; then
