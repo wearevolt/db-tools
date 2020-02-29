@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -e
+
+REST_ARGS=()
+while [[ $# -gt 0 ]];
+do
+  key="$1"
+
+  case $key in
+    --pass)
+      CONNECTION_URL_KEY=$2
+      shift 2
+      ;;
+    --pass=*)
+      CONNECTION_URL_KEY="${1#*=}"
+      shift 1
+      ;;
+    # --)
+      # shift 1
+      # Rest args should be passed directly to psql
+      # break
+      # ;;
+    *)
+      REST_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$(mount | grep proc | grep "hidepid=2")" ]]; then
+  echo "For security reason you must mount /proc $key with hidepid=2 option" >&2
+  exit 1
+fi
+
+DB_URL=$(pass $CONNECTION_URL_KEY)
+
+psql --dbname="$DB_URL" --no-password ${REST_ARGS[@]}
