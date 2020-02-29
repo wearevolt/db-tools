@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 # Load autocompletion rules for pass
 if [ -f /usr/share/bash-completion/completions/pass ]; then
   . /usr/share/bash-completion/completions/pass

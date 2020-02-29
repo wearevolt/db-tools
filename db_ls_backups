@@ -63,7 +63,10 @@ do
       NEXT_PAGE_TOKEN="${1#*=}"
       shift 1
       ;;
-
+    --output=*)
+      OUTPUT_FORMAT="${1#*=}"
+      shift 1
+      ;;
     *)
       shift
       ;;
@@ -84,10 +87,18 @@ else
   NEXT_PAGE=""
 fi
 
-aws s3 ls \
-  --human-readable \
-  s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
-  | awk "{ \$NF=\"${BACKUP_PREFIX}\"\$NF; print \$0 }"
+if [[ $OUTPUT_FORMAT == "json" ]]; then
+  aws s3api list-objects-v2 \
+    --output=$OUTPUT_FORMAT \
+    --bucket=${DB_BACKUP_TARGET_BUCKET} \
+    --prefix=${BACKUP_PREFIX} \
+    --max-items=500
+else
+  aws s3 ls \
+    --human-readable \
+    s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
+    | awk "{ \$NF=\"${BACKUP_PREFIX}\"\$NF; print \$0 }"
+fi
 
 
 # aws s3api list-objects-v2 --bucket=${DB_BACKUP_TARGET_BUCKET} \
