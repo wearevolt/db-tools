@@ -17,16 +17,11 @@ _db_tools_list_remote_files() {
 
   mapfile -t COMPREPLY < <(
     (
-      db_ls_backups -p $dir_prefix --output=json \
-        | jq '[((.Contents // []) | map(.Key)), ((.CommonPrefixes // []) | map(.Prefix))] | flatten | .[]' \
-          --raw-output \
+      db_ls_backups -p $dir_prefix --json=plain --cached \
+        | jq '(.Contents // []) | map(.Key) | .[]' -r \
         | $grep_full_prefix
     )
   )
-
-  if [[ ( ${#COMPREPLY[@]} -eq 1 ) && ( "${COMPREPLY[0]:(-1)}" == '/' ) ]]; then
-    _db_tools_list_remote_files "${COMPREPLY[0]}"
-  fi
 }
 
 _db_tools_list_remote_dirs() {
@@ -44,11 +39,11 @@ _db_tools_list_remote_dirs() {
 
 _db_ls_backups() {
   COMPREPLY=();
-	local keys="-p"
+	local keys="-p --prefix --cached --refresh-cache "
   local prev="${COMP_WORDS[$COMP_CWORD-1]}";
   local cur="${COMP_WORDS[COMP_CWORD]}"
 
-  if [[ ${cur:1} == '-' ]]; then
+  if [[ ( ${cur:0} == '-' ) || ( -z "$prev" ) ]]; then
     COMPREPLY+=( $(compgen -W "${keys}" -- ${cur}) );
   else
     case $prev in

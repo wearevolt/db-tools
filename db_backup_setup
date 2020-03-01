@@ -69,3 +69,11 @@ if [[ -z "${DB_BACKUP_DUMPS_DIR}" ]]; then
   DB_BACKUP_DUMPS_DIR=$TMPDIR/dumps
   mkdir -p "${DB_BACKUP_DUMPS_DIR}"
 fi
+
+# 5. Setup cache
+if [[ -z "${DB_TOOLS_CACHE}" ]]; then
+  DB_TOOLS_CACHE=$HOME/.dbtools/cache
+fi
+
+mkdir -p $HOME/.dbtools/cache
+chmod 0700 $HOME/.dbtools/cache
