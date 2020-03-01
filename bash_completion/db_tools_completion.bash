@@ -3,6 +3,10 @@ _db_tools_list_remote_files() {
   local dir_prefix=$full_prefix
   local grep_full_prefix="grep $full_prefix"
 
+  if [[ -z "$full_prefix" ]]; then
+    grep_full_prefix="cat -"
+  fi
+
   if [[ ( -n "$dir_prefix" ) && ( "${dir_prefix:(-1)}" != '/' ) ]]; then
     dir_prefix=$(dirname $dir_prefix)/
   fi
@@ -11,22 +15,31 @@ _db_tools_list_remote_files() {
     dir_prefix='/'
   fi
 
-  if [[ -z "$full_prefix" ]]; then
-    grep_full_prefix="cat -"
-  fi
-
   mapfile -t COMPREPLY < <(
     (
-      db_ls_backups -p $dir_prefix \
-        | awk '$1 == "PRE" { print $2; } $1 != "PRE" { print $5; }' \
+      db_ls_backups -p $dir_prefix --output=json \
+        | jq '[((.Contents // []) | map(.Key)), ((.CommonPrefixes // []) | map(.Prefix))] | flatten | .[]' \
+          --raw-output \
         | $grep_full_prefix
-    ) 2>/dev/null
+    )
   )
 
   if [[ ( ${#COMPREPLY[@]} -eq 1 ) && ( "${COMPREPLY[0]:(-1)}" == '/' ) ]]; then
     _db_tools_list_remote_files "${COMPREPLY[0]}"
-    # compopt -o nospace;
   fi
+}
+
+_db_tools_list_remote_dirs() {
+  # List files and dirs
+  _db_tools_list_remote_files $1
+
+  # Convert files to dirs
+  mapfile -t COMPREPLY < <(
+    ( IFS=$'\n'; echo "${COMPREPLY[*]}" ) \
+      | sed 's#/[^\/]*$#/#' \
+      | sort -h \
+      | uniq
+  )
 }
 
 _db_ls_backups() {
@@ -40,7 +53,7 @@ _db_ls_backups() {
   else
     case $prev in
       -p|--prefix)
-        _db_tools_list_remote_files $cur
+        _db_tools_list_remote_dirs "${cur}" 'dirs_only'
       ;;
     esac
   fi

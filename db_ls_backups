@@ -92,8 +92,9 @@ if [[ $OUTPUT_FORMAT == "json" ]]; then
     --output=$OUTPUT_FORMAT \
     --bucket=${DB_BACKUP_TARGET_BUCKET} \
     --prefix=${BACKUP_PREFIX} \
+    --max-items=500 \
     --delimiter=/ \
-    --max-items=500
+    ${NEXT_PAGE}
 else
   aws s3 ls \
     --human-readable \
