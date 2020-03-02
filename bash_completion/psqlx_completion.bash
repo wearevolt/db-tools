@@ -19,7 +19,7 @@ _psqlx() {
 
   local lastarg="${COMP_WORDS[$COMP_CWORD-1]}";
 
-  if [[ ( $COMP_CWORD -gt 1 ) && ( ${lastarg:0} == '-' ) ]]; then
+  if [[ $COMP_CWORD -gt 1 ]]; then
     case $lastarg in
       --pass)
         # Use completion for pass show
