@@ -73,6 +73,7 @@ if [[ $REFRESH_CACHE == 'true' ]]; then
   NP=''
   page=0
 
+  rm $BUCKET_LISTING_CACHE_DIR/*
   while true; do
     let "page=page+1"
 
@@ -86,6 +87,15 @@ if [[ $REFRESH_CACHE == 'true' ]]; then
       break
     fi
   done
+
+  jq '.Contents | .[]' $BUCKET_LISTING_CACHE_DIR/*.json -r -c \
+    | jq -s "map(.Key) | .[]" -r \
+    > $BUCKET_LISTING_CACHE_DIR/all_files.txt
+
+  cat $BUCKET_LISTING_CACHE_DIR/all_files.txt \
+    | sed 's#/[^\/]*$#/#' \
+    | uniq \
+    > $BUCKET_LISTING_CACHE_DIR/all_dirs.txt
 
   exit
 fi
@@ -107,7 +117,7 @@ if [[ $CACHED == "cached" ]]; then
     #     | jq '{ .Contents | map(.Key[0:($prefix|length)]) }'
     fi
   else
-    :
+    cat $BUCKET_LISTING_CACHE_DIR/all_files.txt | grep "^${BACKUP_PREFIX}"
   fi
 else
   if [[ $OUTPUT_FORMAT == "json" ]]; then
