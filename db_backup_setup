@@ -79,3 +79,11 @@ fi
 
 mkdir -p $HOME/.dbtools/cache
 chmod 0700 $HOME/.dbtools/cache
+
+# 6. Use custom .pgpass file
+export PGPASSFILE="${PGPASSFILE:-$HOME/.pgpass}.dbtools"
+
+cleanup_pgpass() {
+  rm $PGPASSFILE || :
+}
+trap 'cleanup_pgpass' 0

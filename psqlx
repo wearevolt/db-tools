@@ -63,9 +63,6 @@ else
   DATABASE_URL=${!ENV_VAR_NAME}
 fi
 
-
 DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
-psql --dbname="$DB_URL" ${REST_ARGS[@]}
-
-clean_pgpass "$DB_URL"
+psql --dbname="$DB_URL" --no-password ${REST_ARGS[@]}

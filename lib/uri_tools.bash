@@ -62,30 +62,54 @@ function parse_uri() {
 function store_password_to_pgpass() {
   parse_uri "$@"
 
-  touch $HOME/.pgpass
-  chmod 0600 $HOME/.pgpass
+  touch ${PGPASSFILE:-$HOME/.pgpass}
+  chmod 0600 ${PGPASSFILE:-$HOME/.pgpass}
 
-  clean_pgpass "$@"
+  local clean_key="${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:"
 
-  echo "${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:${uri_password}" > $HOME/.pgpass
+  # clean_pgpass "$clean_key"
+
+  echo "${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:${uri_password}" >> ${PGPASSFILE:-$HOME/.pgpass}
+
+  remove_uri_password "$@"
+
+  return 0
+}
+
+function extract_uri_password() {
+  parse_uri "$@"
+
+  echo ${uri_password}
+
+  return 0
+}
+
+function remove_uri_password() {
+  parse_uri "$@"
 
   local uri="${uri_schema}://${uri_user}@${uri_host}:${uri_port:-5432}${uri_path}"
   if [[ -n "${uri_query}" ]]; then
     uri=$uri?${uri_query}
   fi
+
   if [[ -n "${uri_fragment}" ]]; then
     uri=$uri#${uri_fragment}
   fi
+
   echo "${uri}"
+
+  return 0
 }
 
-function clean_pgpass() {
-  parse_uri "$@"
+# function clean_pgpass() {
+#   local clean_key="$@"
 
-  touch $HOME/.pgpass
-  chmod 0600 $HOME/.pgpass
+#   touch ${PGPASSFILE:-$HOME/.pgpass}
+#   chmod 0600 ${PGPASSFILE:-$HOME/.pgpass}
 
-  local user_key="${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:"
+#   echo $clean_key >&2
+#   eval "sed -i \"/^$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d\" ${PGPASSFILE:-$HOME/.pgpass}" >&2
+#   # sed -E -i "/$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d" ${PGPASSFILE:-$HOME/.pgpass}
 
-  sed -i "s/^$(echo $user_key | sed 's/[\.\-\[\]\(\)]/\\\0/g').*\$//g" $HOME/.pgpass
-}
+#   return 0
+# }
