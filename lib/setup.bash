@@ -81,7 +81,13 @@ mkdir -p $HOME/.dbtools/cache
 chmod 0700 $HOME/.dbtools/cache
 
 # 6. Use custom .pgpass file
-export PGPASSFILE="${PGPASSFILE:-$HOME/.pgpass}.dbtools"
+if [[ -d /dev/shm ]]; then
+  export PGPASSFILE="$(mktemp --tmpdir=/dev/shm .pgpass.dbtools.XXXXXXXXXX)"
+else
+  echo "No /dev/shm present in your system, will use \$HOME/.pgass.dbtools intead" >&2
+  export PGPASSFILE="$HOME/.pgpass.dbtools"
+fi
+
 
 cleanup_pgpass() {
   rm $PGPASSFILE || :

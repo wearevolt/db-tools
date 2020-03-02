@@ -62,14 +62,14 @@ function parse_uri() {
 function store_password_to_pgpass() {
   parse_uri "$@"
 
-  touch ${PGPASSFILE:-$HOME/.pgpass}
-  chmod 0600 ${PGPASSFILE:-$HOME/.pgpass}
+  touch ${PGPASSFILE:?"PGPASSFILE must be set"}
+  chmod 0600 ${PGPASSFILE:?"PGPASSFILE must be set"}
 
   local clean_key="${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:"
 
   # clean_pgpass "$clean_key"
 
-  echo "${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:${uri_password}" >> ${PGPASSFILE:-$HOME/.pgpass}
+  echo "${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:${uri_password}" >> ${PGPASSFILE:?"PGPASSFILE must be set"}
 
   remove_uri_password "$@"
 
@@ -104,12 +104,12 @@ function remove_uri_password() {
 # function clean_pgpass() {
 #   local clean_key="$@"
 
-#   touch ${PGPASSFILE:-$HOME/.pgpass}
-#   chmod 0600 ${PGPASSFILE:-$HOME/.pgpass}
+#   touch ${PGPASSFILE:?"PGPASSFILE must be set"}
+#   chmod 0600 ${PGPASSFILE:?"PGPASSFILE must be set"}
 
 #   echo $clean_key >&2
-#   eval "sed -i \"/^$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d\" ${PGPASSFILE:-$HOME/.pgpass}" >&2
-#   # sed -E -i "/$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d" ${PGPASSFILE:-$HOME/.pgpass}
+#   eval "sed -i \"/^$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d\" ${PGPASSFILE:?"PGPASSFILE must be set"}" >&2
+#   # sed -E -i "/$(echo $clean_key | sed 's/[\.\-\[\]\(\)]/\\\0/g')/d" ${PGPASSFILE:?"PGPASSFILE must be set"}
 
 #   return 0
 # }
