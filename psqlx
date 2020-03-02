@@ -3,7 +3,7 @@ set -e
 
 ## Peform setup
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-. ${SCRIPT_DIR}/lib/uri_tools.bash
+. ${SCRIPT_DIR}/db_backup_setup
 
 REST_ARGS=()
 while [[ $# -gt 0 ]];
@@ -29,12 +29,12 @@ do
       shift 1
       ;;
 
-    --heroku-config)
-      HEROKU_CONFIG_NAME=$2
+    --env-name)
+      ENV_VAR_NAME=$2
       shift 2
       ;;
-    --heroku-config=*)
-      HEROKU_CONFIG_NAME="${1#*=}"
+    --env-name=*)
+      ENV_VAR_NAME="${1#*=}"
       shift 1
       ;;
 
@@ -50,13 +50,19 @@ do
   esac
 done
 
-if [[ -n "${CONNECTION_URL_KEY}" ]]; then
-  DATABASE_URL="$(pass $CONNECTION_URL_KEY)"
+if [[ ( -n "${CONNECTION_URL_KEY}" ) || ( -n "${HEROKU_APP}" ) ]]; then
+  if [[ -n "${CONNECTION_URL_KEY}" ]]; then
+    DATABASE_URL="$(pass $CONNECTION_URL_KEY)"
+  fi
+
+  if [[ -n "${HEROKU_APP}" ]]; then
+    DATABASE_URL=$(heroku config:get ${ENV_NAME:-DATABASE_URL} --app=${HEROKU_APP})
+  fi
+else
+  ENV_VAR_NAME=${ENV_VAR_NAME:-DATABASE_URL}
+  DATABASE_URL=${!ENV_VAR_NAME}
 fi
 
-if [[ -n "${HEROKU_APP}" ]]; then
-  DATABASE_URL=$(heroku config:get ${HEROKU_CONFIG_NAME:-DATABASE_URL} --app=${HEROKU_APP})
-fi
 
 DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
