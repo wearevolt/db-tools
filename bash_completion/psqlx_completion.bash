@@ -15,7 +15,7 @@ __is_function() {
 _psqlx() {
   COMPREPLY=();
   local cur="${COMP_WORDS[COMP_CWORD]}"
-	local commands="--pass --heroku-app --heroku-config"
+	local commands="--pass --heroku-app --env-var-name"
 
   local lastarg="${COMP_WORDS[$COMP_CWORD-1]}";
 
