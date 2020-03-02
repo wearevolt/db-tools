@@ -9,6 +9,8 @@ on_error() {
   printf "Error at LINE NUMBER: $LINE"
 }
 
+. ${SCRIPT_DIR}/lib/uri_tools.bash
+
 # Configuration
 # following configuration parameters required:
 # DB_BACKUP_AWS_ACCESS_KEY_ID=

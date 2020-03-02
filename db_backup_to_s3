@@ -113,6 +113,10 @@ S3_FILE_PATH="s3://${DB_BACKUP_TARGET_BUCKET}/${REMOTE_FILE_PATH}"
 
 aws configure set default.s3.multipart_chunksize 50MB
 
-pg_dump --format=custom -Z 5 -d "$DATABASE_URL" | aws s3 cp - "$S3_FILE_PATH"
+DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
+
+pg_dump --format=custom -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
+
+clean_pgpass "$DB_URL"
 
 echo "Backed successfully up to: ${REMOTE_FILE_PATH}"

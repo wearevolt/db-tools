@@ -173,11 +173,15 @@ SQL
   echo "Created database ${CREATED_DB_NAME}"
 fi
 
+DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
+
 pg_restore --verbose --clean --no-acl --no-owner \
-  -d "$DATABASE_URL" \
+  -d "$DB_URL" \
   $TABLES_RESTORE_OPTIONS \
   < "$LOCAL_FILE" \
   || echo "There were some problems during restore"
+
+clean_pgpass "$DB_URL"
 
 # pg_restore --verbose --no-acl --no-owner \
 #   --data-only \

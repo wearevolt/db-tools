@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+## Peform setup
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${SCRIPT_DIR}/lib/uri_tools.bash
+
 REST_ARGS=()
 while [[ $# -gt 0 ]];
 do
@@ -27,11 +31,8 @@ do
   esac
 done
 
-if [[ -z "$(mount | grep proc | grep "hidepid=2")" ]]; then
-  echo "For security reason you must mount /proc $key with hidepid=2 option" >&2
-  exit 1
-fi
+DB_URL=$(store_password_to_pgpass "$(pass $CONNECTION_URL_KEY)")
 
-DB_URL=$(pass $CONNECTION_URL_KEY)
+psql --dbname="$DB_URL" ${REST_ARGS[@]}
 
-psql --dbname="$DB_URL" --no-password ${REST_ARGS[@]}
+clean_pgpass "$DB_URL"
