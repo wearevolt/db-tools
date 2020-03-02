@@ -19,6 +19,25 @@ do
       CONNECTION_URL_KEY="${1#*=}"
       shift 1
       ;;
+
+    --heroku-app)
+      HEROKU_APP=$2
+      shift 2
+      ;;
+    --heroku-app=*)
+      HEROKU_APP="${1#*=}"
+      shift 1
+      ;;
+
+    --heroku-config)
+      HEROKU_CONFIG_NAME=$2
+      shift 2
+      ;;
+    --heroku-config=*)
+      HEROKU_CONFIG_NAME="${1#*=}"
+      shift 1
+      ;;
+
     # --)
       # shift 1
       # Rest args should be passed directly to psql
@@ -31,7 +50,15 @@ do
   esac
 done
 
-DB_URL=$(store_password_to_pgpass "$(pass $CONNECTION_URL_KEY)")
+if [[ -n "${CONNECTION_URL_KEY}" ]]; then
+  DATABASE_URL="$(pass $CONNECTION_URL_KEY)"
+fi
+
+if [[ -n "${HEROKU_APP}" ]]; then
+  DATABASE_URL=$(heroku config:get ${HEROKU_CONFIG_NAME:-DATABASE_URL} --app=${HEROKU_APP})
+fi
+
+DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
 psql --dbname="$DB_URL" ${REST_ARGS[@]}
 
