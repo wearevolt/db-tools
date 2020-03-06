@@ -48,12 +48,24 @@ fi
 
 # 3. load .env files for non production environments
 if [[ "$WORKING_ENV" != "production" ]]; then
+  if [[ -f ${PWD}/.env ]]; then
+    . ${PWD}/.env
+  fi
+
   if [[ -f ${BASE_DIR}/.env ]]; then
     . ${BASE_DIR}/.env
   fi
 
+  if [[ -f ${PWD}/.env.${WORKING_ENV} ]]; then
+    . ${PWD}/.env.${WORKING_ENV}
+  fi
+
   if [[ -f ${BASE_DIR}/.env.${WORKING_ENV} ]]; then
     . ${BASE_DIR}/.env.${WORKING_ENV}
+  fi
+
+if [[ -f ${PWD}/.env.db_tools ]]; then
+    . ${PWD}/.env.db_tools
   fi
 
   if [[ -f ${BASE_DIR}/.env.db_tools ]]; then
