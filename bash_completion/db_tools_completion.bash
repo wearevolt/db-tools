@@ -39,7 +39,7 @@ _db_tools_list_remote_dirs() {
 
 _db_ls_backups() {
   COMPREPLY=();
-	local keys="-p --prefix --cached --refresh-cache "
+  local keys="-p --prefix --cached --refresh-cache "
   local prev="${COMP_WORDS[$COMP_CWORD-1]}";
   local cur="${COMP_WORDS[COMP_CWORD]}"
 
@@ -56,7 +56,7 @@ _db_ls_backups() {
 
 _db_backup_restore() {
   COMPREPLY=();
-	local keys="--remote-file -rf"
+  local keys="--remote-file -rf"
   local prev="${COMP_WORDS[$COMP_CWORD-1]}";
   local cur="${COMP_WORDS[COMP_CWORD]}"
 
