@@ -181,7 +181,6 @@ pg_restore --verbose --clean --no-acl --no-owner \
   < "$LOCAL_FILE" \
   || echo "There were some problems during restore"
 
-clean_pgpass "$DB_URL"
 
 # pg_restore --verbose --no-acl --no-owner \
 #   --data-only \
