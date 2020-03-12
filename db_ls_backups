@@ -2,11 +2,7 @@
 
 ## Peform setup
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-. ${SCRIPT_DIR}/db_backup_setup
-
-## Process params
-LEFT_BOUNDARY="00:00 yesterday UTC"
-RIGHT_BOUNDARY="00:00 tomorrow UTC"
+. ${SCRIPT_DIR}/lib/setup.bash
 
 NEXT_PAGE_TOKEN=
 
@@ -23,59 +19,85 @@ do
       BACKUP_PREFIX="${1#*=}"
       shift 1
       ;;
-
-    # -l|--left-bound)
-    #   LEFT_BOUNDARY=$2
-    #   shift 2
-    #   ;;
-    # -l=*|--left-bound=*)
-    #   LEFT_BOUNDARY="${1#*=}"
-    #   shift 1
-    #   ;;
-
-    # -r|--right-boundary)
-    #   RIGHT_BOUNDARY=$2
-    #   shift 2
-    #   ;;
-    # -r=*|--right-boundary=*)
-    #   RIGHT_BOUNDARY="${1#*=}"
-    #   shift 1
-    #   ;;
-
-    -d|--day)
-      DAY="$2"
-      LEFT_BOUNDARY="$DAY"
-      RIGHT_BOUNDARY="$DAY + 1 day"
-      shift 2
+    --cached)
+      CACHED=cached
+      shift 1
       ;;
-    -d=*|--day=*)
-      DAY="${1#*=}"
-      LEFT_BOUNDARY="$DAY"
-      RIGHT_BOUNDARY="$DAY + 1 day"
+    --refresh-cache)
+      REFRESH_CACHE=true
       shift 1
       ;;
 
+    # -d|--day)
+    #   DAY="$2"
+    #   shift 2
+    #   ;;
+    # -d=*|--day=*)
+    #   DAY="${1#*=}"
+    #   shift 1
+    #   ;;
+
     -np|--next-page)
       NEXT_PAGE_TOKEN="$2"
-      shift 2
+      shift 1
       ;;
     -np=*|--next-page=*)
       NEXT_PAGE_TOKEN="${1#*=}"
       shift 1
       ;;
-
+    --output=*)
+      OUTPUT_FORMAT="${1#*=}"
+      shift 1
+      ;;
+    --json=*)
+      OUTPUT_FORMAT=json
+      JSON_FORMAT="${1#*=}"
+      shift 1
+      ;;
     *)
       shift
       ;;
   esac
 done
 
-# LEFT_BOUNDARY=$(date +'%Y-%m-%d' --utc --date="${LEFT_BOUNDARY}")
-# RIGHT_BOUNDARY=$(date +'%Y-%m-%d' --utc --date="${RIGHT_BOUNDARY}")
-
 BACKUP_PREFIX=$(echo ${BACKUP_PREFIX} | sed -r 's/\/$//')
 if [[ -n "${BACKUP_PREFIX}" ]]; then
   BACKUP_PREFIX=${BACKUP_PREFIX}/
+fi
+
+BUCKET_LISTING_CACHE_DIR=$DB_TOOLS_CACHE/$DB_BACKUP_TARGET_BUCKET
+mkdir -p $BUCKET_LISTING_CACHE_DIR
+
+if [[ $REFRESH_CACHE == 'true' ]]; then
+
+  NP=''
+  page=0
+
+  rm $BUCKET_LISTING_CACHE_DIR/*
+  while true; do
+    let "page=page+1"
+
+    PAGE_FILE=$BUCKET_LISTING_CACHE_DIR/page_${page}.json
+    echo "Saving ${PAGE_FILE}"
+    db_ls_backups --json=plain -np $NP > $PAGE_FILE
+
+    NP=$(cat $PAGE_FILE | jq '.NextToken' -r)
+
+    if [[ ( -z "$NP" ) || $NP == "null" ]]; then
+      break
+    fi
+  done
+
+  jq '.Contents | .[]' $BUCKET_LISTING_CACHE_DIR/*.json -r -c \
+    | jq -s "map(.Key) | .[]" -r \
+    > $BUCKET_LISTING_CACHE_DIR/all_files.txt
+
+  cat $BUCKET_LISTING_CACHE_DIR/all_files.txt \
+    | sed 's#/[^\/]*$#/#' \
+    | uniq \
+    > $BUCKET_LISTING_CACHE_DIR/all_dirs.txt
+
+  exit
 fi
 
 if [[ ! -z "$NEXT_PAGE_TOKEN" ]]; then
@@ -84,10 +106,41 @@ else
   NEXT_PAGE=""
 fi
 
-aws s3 ls \
-  --human-readable \
-  s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
-  | awk "{ \$NF=\"${BACKUP_PREFIX}\"\$NF; print \$0 }"
+if [[ $CACHED == "cached" ]]; then
+  if [[ $OUTPUT_FORMAT == "json" ]]; then
+    if [[ $JSON_FORMAT == 'plain' ]]; then
+      jq '.Contents | .[]' $BUCKET_LISTING_CACHE_DIR/*.json -r -c \
+        | jq -s --arg prefix "${BACKUP_PREFIX}" \
+          '{ Contents: map(select(.Key[0:($prefix|length)] == $prefix)) }'
+    # else
+    #   db_ls_backups --prefix "${BACKUP_PREFIX}" --cached --json=plain \
+    #     | jq '{ .Contents | map(.Key[0:($prefix|length)]) }'
+    fi
+  else
+    cat $BUCKET_LISTING_CACHE_DIR/all_files.txt | grep "^${BACKUP_PREFIX}"
+  fi
+else
+  if [[ $OUTPUT_FORMAT == "json" ]]; then
+    if [[ $JSON_FORMAT == 'plain' ]]; then
+      DELIMITER_FLAG=""
+    else
+      DELIMITER_FLAG="--delimiter=/"
+    fi
+
+    aws s3api list-objects-v2 \
+      --output=$OUTPUT_FORMAT \
+      --bucket=${DB_BACKUP_TARGET_BUCKET} \
+      --prefix=${BACKUP_PREFIX} \
+      --max-items=500 \
+      $DELIMITER_FLAG \
+      ${NEXT_PAGE}
+  else
+    aws s3 ls \
+      --human-readable \
+      s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
+      | awk "{ \$NF=\"${BACKUP_PREFIX}\"\$NF; print \$0 }"
+  fi
+fi
 
 
 # aws s3api list-objects-v2 --bucket=${DB_BACKUP_TARGET_BUCKET} \

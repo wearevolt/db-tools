@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -e
+
+## Peform setup
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+. ${SCRIPT_DIR}/lib/setup.bash
+
+REST_ARGS=()
+while [[ $# -gt 0 ]];
+do
+  key="$1"
+
+  case $key in
+    --pass)
+      CONNECTION_URL_KEY=$2
+      shift 2
+      ;;
+    --pass=*)
+      CONNECTION_URL_KEY="${1#*=}"
+      shift 1
+      ;;
+
+    --heroku-app)
+      HEROKU_APP=$2
+      shift 2
+      ;;
+    --heroku-app=*)
+      HEROKU_APP="${1#*=}"
+      shift 1
+      ;;
+
+    --env-var-name)
+      ENV_VAR_NAME=$2
+      shift 2
+      ;;
+    --env-var-name=*)
+      ENV_VAR_NAME="${1#*=}"
+      shift 1
+      ;;
+
+    # --)
+      # shift 1
+      # Rest args should be passed directly to psql
+      # break
+      # ;;
+    *)
+      REST_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ( -n "${CONNECTION_URL_KEY}" ) || ( -n "${HEROKU_APP}" ) ]]; then
+  if [[ -n "${CONNECTION_URL_KEY}" ]]; then
+    DATABASE_URL="$(pass $CONNECTION_URL_KEY)"
+  fi
+
+  if [[ -n "${HEROKU_APP}" ]]; then
+    DATABASE_URL=$(heroku config:get ${ENV_NAME:-DATABASE_URL} --app=${HEROKU_APP})
+  fi
+else
+  ENV_VAR_NAME=${ENV_VAR_NAME:-DATABASE_URL}
+  DATABASE_URL=${!ENV_VAR_NAME}
+fi
+
+DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
+
+psql --dbname="$DB_URL" --no-password ${REST_ARGS[@]}

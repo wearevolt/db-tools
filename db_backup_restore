@@ -2,7 +2,7 @@
 
 ## Peform setup
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-. ${SCRIPT_DIR}/db_backup_setup
+. ${SCRIPT_DIR}/lib/setup.bash
 
 ## Process params
 TABLES_TO_SKIP=()
@@ -173,11 +173,14 @@ SQL
   echo "Created database ${CREATED_DB_NAME}"
 fi
 
+DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
+
 pg_restore --verbose --clean --no-acl --no-owner \
-  -d "$DATABASE_URL" \
+  -d "$DB_URL" \
   $TABLES_RESTORE_OPTIONS \
   < "$LOCAL_FILE" \
   || echo "There were some problems during restore"
+
 
 # pg_restore --verbose --no-acl --no-owner \
 #   --data-only \

@@ -2,7 +2,7 @@
 
 ## Peform setup
 DBTOOLS_BASE_DIR=$(dirname $(which db_ls_backups))
-. ${DBTOOLS_BASE_DIR}/db_backup_setup
+. ${DBTOOLS_BASE_DIR}/lib/setup.bash
 
 while [[ $# -gt 0 ]]
 do
