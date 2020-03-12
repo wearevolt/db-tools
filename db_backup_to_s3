@@ -117,6 +117,6 @@ DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
 pg_dump --format=custom -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
 
-clean_pgpass "$DB_URL"
+# clean_pgpass "$DB_URL"
 
 echo "Backed successfully up to: ${REMOTE_FILE_PATH}"
