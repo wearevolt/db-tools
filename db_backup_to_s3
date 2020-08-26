@@ -4,6 +4,8 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${SCRIPT_DIR}/lib/setup.bash
 
+TABLES_OPTIONS=''
+
 ## Process params
 while [[ $# -gt 0 ]]
 do
@@ -81,6 +83,18 @@ do
       REMOTE_FILE_PATH="${1#*=}"
       shift 1
       ;;
+
+    -t|--table)
+      TABLE_NAME="${1#*=}"
+      TABLES_OPTIONS="${TABLES_OPTIONS} --table ${TABLE_NAME}"
+      shift 2
+      ;;
+    -t=*|--table=*)
+      TABLE_NAME="${1#*=}"
+      TABLES_OPTIONS="${TABLES_OPTIONS} --table ${TABLE_NAME}"
+      shift 1
+      ;;
+
     *)
       shift
       ;;
@@ -115,7 +129,7 @@ aws configure set default.s3.multipart_chunksize 50MB
 
 DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
-pg_dump --format=custom -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
+pg_dump --format=custom $TABLES_OPTIONS -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
 
 # clean_pgpass "$DB_URL"
 
