@@ -85,7 +85,7 @@ do
       ;;
 
     -t|--table)
-      TABLE_NAME="${1#*=}"
+      TABLE_NAME=$2
       TABLES_OPTIONS="${TABLES_OPTIONS} --table ${TABLE_NAME}"
       shift 2
       ;;
