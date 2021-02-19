@@ -129,8 +129,12 @@ aws configure set default.s3.multipart_chunksize 50MB
 
 DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 
+# Run while parent process running"
+bash -c 'while kill -0 $PPID 2>/dev/null; do printf "."; sleep 1; done'&
+DOTS_PROCESS_PID=$!
+
 pg_dump --format=custom $TABLES_OPTIONS -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
 
 # clean_pgpass "$DB_URL"
-
+kill $DOTS_PROCESS_PID
 echo "Backed successfully up to: ${REMOTE_FILE_PATH}"
