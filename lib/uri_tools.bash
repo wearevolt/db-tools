@@ -69,7 +69,7 @@ function store_password_to_pgpass() {
 
   # clean_pgpass "$clean_key"
 
-  echo "${uri_host}:${uri_port:-5432}:${uri_path#/}:${uri_user}:${uri_password}" >> ${PGPASSFILE:?"PGPASSFILE must be set"}
+  echo "${uri_host}:${uri_port:-5432}:*:${uri_user}:${uri_password}" >> ${PGPASSFILE:?"PGPASSFILE must be set"}
 
   remove_uri_password "$@"
 
