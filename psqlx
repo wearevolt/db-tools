@@ -52,7 +52,7 @@ done
 
 if [[ ( -n "${CONNECTION_URL_KEY}" ) || ( -n "${HEROKU_APP}" ) ]]; then
   if [[ -n "${CONNECTION_URL_KEY}" ]]; then
-    DATABASE_URL="$(pass $CONNECTION_URL_KEY)"
+    DATABASE_URL="$(pass $CONNECTION_URL_KEY | head -n 1)"
   fi
 
   if [[ -n "${HEROKU_APP}" ]]; then
