@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 . ${SCRIPT_DIR}/lib/setup.bash
 
 TABLES_OPTIONS=''
+EXCLUDE_SCHEMA_OPTIONS=''
 
 ## Process params
 while [[ $# -gt 0 ]]
@@ -84,6 +85,15 @@ do
       shift 1
       ;;
 
+    --snapshot=snapshotname)
+      SNAPSHOT_NAME=$2
+      shift 2
+      ;;
+    --snapshot=snapshotname=*)
+      SNAPSHOT_NAME="${1#*=}"
+      shift 1
+      ;;
+
     -t|--table)
       TABLE_NAME=$2
       TABLES_OPTIONS="${TABLES_OPTIONS} --table ${TABLE_NAME}"
@@ -94,6 +104,18 @@ do
       TABLES_OPTIONS="${TABLES_OPTIONS} --table ${TABLE_NAME}"
       shift 1
       ;;
+
+    --exclude-schema)
+      SCHEMA_NAME=$2
+      TABLES_OPTIONS="${EXCLUDE_SCHEMA_OPTIONS} --exclude-schema ${SCHEMA_NAME}"
+      shift 2
+      ;;
+    --exclude-schema=*)
+      SCHEMA_NAME="${1#*=}"
+      EXCLUDE_SCHEMA_OPTIONS="${EXCLUDE_SCHEMA_OPTIONS} --exclude-schema ${SCHEMA_NAME}"
+      shift 1
+      ;;
+
 
     *)
       shift
@@ -119,6 +141,12 @@ if [[ -z "$BACKUP_FILE_NAME" ]]; then
   )
 fi
 
+if [[ -z "$SNAPSHOT_NAME" ]]; then
+  SNAPSHOT_OPTION=
+else
+  SNAPSHOT_OPTION=--snapshot=$SNAPSHOT_NAME
+fi
+
 if [[ -z "$REMOTE_FILE_PATH" ]]; then
   REMOTE_FILE_PATH="${BACKUP_ROOT}/${BACKUP_DIR}/${BACKUP_FILE_NAME}"
 fi
@@ -133,7 +161,12 @@ DB_URL=$(store_password_to_pgpass "$DATABASE_URL")
 bash -c 'while kill -0 $PPID 2>/dev/null; do printf "."; sleep 1; done'&
 DOTS_PROCESS_PID=$!
 
-pg_dump --format=custom $TABLES_OPTIONS -Z 5 -d "$DB_URL" | aws s3 cp - "$S3_FILE_PATH"
+pg_dump --format=custom \
+  $EXCLUDE_SCHEMA_OPTIONS \
+  $TABLES_OPTIONS \
+  -Z 5 -d "$DB_URL" \
+  $SNAPSHOT_OPTION \
+  | aws s3 cp - "$S3_FILE_PATH"
 
 # clean_pgpass "$DB_URL"
 kill $DOTS_PROCESS_PID
