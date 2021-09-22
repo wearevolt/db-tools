@@ -48,10 +48,10 @@ do
       shift 1
       ;;
 
-    --skip-downloading)
-      SKIP_DOWNLOADING=true
-      shift 1
-    ;;
+    # --skip-downloading)
+    #   SKIP_DOWNLOADING=true
+    #   shift 1
+    # ;;
 
     --create-database)
       CREATE_DATABASE=$2
@@ -59,6 +59,15 @@ do
       ;;
     --create-database=*)
       CREATE_DATABASE="${1#*=}"
+      shift 1
+      ;;
+
+    --replace-database)
+      REPLACE_DATABASE=$2
+      shift 2
+      ;;
+    --replace-database=*)
+      REPLACE_DATABASE="${1#*=}"
       shift 1
       ;;
 
@@ -91,7 +100,8 @@ do
       shift 1
       ;;
     *)
-      shift
+      >&2 echo "Unknown argument $1"
+      exit 1
       ;;
   esac
 done
@@ -106,6 +116,10 @@ if [[ "$WORKING_ENV" != "production" ]]; then
 fi
 
 if [[ -z "$CREATE_DATABASE" ]]; then
+  CREATE_DATABASE=true
+fi
+
+if [[ "${REPLACE_DATABASE}" == "true" ]]; then
   CREATE_DATABASE=true
 fi
 
@@ -168,6 +182,7 @@ fi
 if [[ "$CREATE_DATABASE" == "true" ]]; then
   SUPERUSER_DATABASE_URL=$(echo $DATABASE_URL | sed -E 's/\/\w+?$/\/postgres/')
   CREATED_DB_NAME=$(basename $LOCAL_FILE | cut -d. -f1)__at__$(date +'%Y%m%d_%H%M%S')
+  ORIGINAL_DATABASE_NAME="$(extract_db_name "$DATABASE_URL")"
 
   DATABASE_URL=$(echo $DATABASE_URL | sed -E "s/\\/\\w+?$/\\/${CREATED_DB_NAME}/")
 
@@ -192,7 +207,31 @@ pg_restore --verbose --clean --no-acl --no-owner \
 #   $TABLES_RESTORE_OPTIONS \
 #   < "$LOCAL_FILE"
 
-if [[ ! -z "$CREATED_DB_NAME" ]]; then
+if [[ "${REPLACE_DATABASE}" == "true" ]]; then
+  BACKUPED_DB_NAME="${ORIGINAL_DATABASE_NAME}_bak_$(date +'%Y%m%d_%H%M%S')"
+
+  psql "$SUPERUSER_DATABASE_URL" <<-SQL
+    BEGIN;
+
+    SELECT pg_terminate_backend(pid)
+      FROM pg_stat_activity
+      WHERE pid <> pg_backend_pid()
+      AND datname = '${ORIGINAL_DATABASE_NAME}';
+
+    ALTER DATABASE ${ORIGINAL_DATABASE_NAME}
+      RENAME TO ${BACKUPED_DB_NAME};
+
+    ALTER DATABASE ${CREATED_DB_NAME}
+      RENAME TO ${ORIGINAL_DATABASE_NAME};
+
+    COMMIT;
+SQL
+fi
+
+if [[ -n "${BACKUPED_DB_NAME}" ]]; then
+  echo "Restored to DATABASE_URL"
+  echo "Original database backuped as ${BACKUPED_DB_NAME}"
+elif [[ -n "$CREATED_DB_NAME" ]]; then
   echo "Restored $CREATED_DB_NAME"
 else
   echo "Restored to DATABASE_URL"

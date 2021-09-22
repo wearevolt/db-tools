@@ -101,6 +101,13 @@ function remove_uri_password() {
   return 0
 }
 
+function extract_db_name() {
+  parse_uri "$@"
+
+  echo "${uri_path:1}"
+  return 0
+}
+
 # function clean_pgpass() {
 #   local clean_key="$@"
 
