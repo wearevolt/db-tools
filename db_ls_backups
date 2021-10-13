@@ -62,7 +62,7 @@ done
 
 BACKUP_PREFIX=$(echo ${BACKUP_PREFIX} | sed -r 's/\/$//')
 if [[ -n "${BACKUP_PREFIX}" ]]; then
-  BACKUP_PREFIX=${BACKUP_PREFIX}/
+  BACKUP_PREFIX="${BACKUP_PREFIX}/"
 fi
 
 BUCKET_LISTING_CACHE_DIR=$DB_TOOLS_CACHE/$DB_BACKUP_TARGET_BUCKET
@@ -130,25 +130,30 @@ else
     aws s3api list-objects-v2 \
       --output=$OUTPUT_FORMAT \
       --bucket=${DB_BACKUP_TARGET_BUCKET} \
-      --prefix=${BACKUP_PREFIX} \
+      --prefix="${BACKUP_PREFIX}" \
       --max-items=500 \
       $DELIMITER_FLAG \
       ${NEXT_PAGE}
   else
   aws s3api list-objects-v2 \
     --bucket=${DB_BACKUP_TARGET_BUCKET} \
-    --prefix=${BACKUP_PREFIX} \
+    --prefix="${BACKUP_PREFIX}" \
+    --delimiter '/' \
     --max-items=500 \
-    | jq '.Contents | map(
-        (.LastModified | sub("T"; " ") | .[:19])
-        + "\t"
-        + (
-            .Size | tostring
-            | split("") | reverse | join("")
-            | gsub("(?<a>\\d{1,3})"; .a + "_") | sub("_$"; "")
-            | split("") | reverse | join("")
-          )
-        + "\t" + .Key + "\t" + .StorageClass) | .[]' --raw-output --compact-output
+    | jq '
+        ((.CommonPrefixes // []) | map("DIR" + "\t\t" + .Prefix))
+        +
+          ((.Contents // []) | map(
+          (.LastModified | sub("T"; " ") | .[:19])
+          + "\t"
+          + (
+              .Size | tostring
+              | split("") | reverse | join("")
+              | gsub("(?<a>\\d{1,3})"; .a + "_") | sub("_$"; "")
+              | split("") | reverse | join("")
+            )
+          + "\t" + .Key + "\t" + .StorageClass))
+        | .[]' --raw-output --compact-output
     # aws s3 ls \
     #   --human-readable \
     #   s3://${DB_BACKUP_TARGET_BUCKET}/${BACKUP_PREFIX} \
